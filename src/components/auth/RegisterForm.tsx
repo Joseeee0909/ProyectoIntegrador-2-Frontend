@@ -7,8 +7,9 @@ interface RegisterFormProps {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const URL_PATTERN = /^(https?:\/\/)[^\s/$.?#].[^\s]*$/i;
 
-type UsernameState = "idle" | "checking" | "available" | "taken" | "too-short" | "error";
+type AvailabilityState = "idle" | "checking" | "available" | "taken" | "error" | "invalid";
 
 export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const [values, setValues] = useState<RegisterFormValues>({
@@ -23,11 +24,12 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof RegisterFormValues, string>>>({});
-  const [usernameState, setUsernameState] = useState<UsernameState>("idle");
+  const [usernameState, setUsernameState] = useState<AvailabilityState>("idle");
   const [usernameMessage, setUsernameMessage] = useState("El username debe ser único.");
 
   useEffect(() => {
     const normalized = values.username.trim();
+
     if (!normalized) {
       setUsernameState("idle");
       setUsernameMessage("El username debe ser único.");
@@ -35,31 +37,32 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     }
 
     if (normalized.length < 3) {
-      setUsernameState("too-short");
-      setUsernameMessage("Debe tener al menos 3 caracteres.");
+      setUsernameState("invalid");
+      setUsernameMessage("El username debe tener al menos 3 caracteres.");
       return;
     }
 
-    let cancelled = false;
+    let active = true;
     setUsernameState("checking");
-    setUsernameMessage("Comprobando disponibilidad...");
+    setUsernameMessage("Verificando username...");
 
-    const timeout = window.setTimeout(() => {
-      void checkUsernameAvailability(normalized)
-        .then((result) => {
-          if (cancelled) return;
-          setUsernameState(result.available ? "available" : "taken");
-          setUsernameMessage(result.message ?? (result.available ? "Disponible" : "No disponible"));
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setUsernameState("error");
-          setUsernameMessage("No pudimos validar el username ahora.");
-        });
-    }, 350);
+    const timeout = window.setTimeout(async () => {
+      try {
+        const availability = await checkUsernameAvailability(normalized);
+        if (!active) return;
+
+        setUsernameState(availability.available ? "available" : "taken");
+        setUsernameMessage(availability.message);
+      } catch {
+        if (!active) return;
+
+        setUsernameState("error");
+        setUsernameMessage("No pudimos validar el username.");
+      }
+    }, 250);
 
     return () => {
-      cancelled = true;
+      active = false;
       window.clearTimeout(timeout);
     };
   }, [values.username]);
@@ -69,12 +72,12 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     if (!values.firstName.trim()) nextErrors.firstName = "Ingresa tus nombres.";
     if (!values.lastName.trim()) nextErrors.lastName = "Ingresa tus apellidos.";
     if (!values.username.trim()) nextErrors.username = "El username es obligatorio.";
-    else if (values.username.trim().length < 3) nextErrors.username = "Debe tener al menos 3 caracteres.";
+    else if (values.username.trim().length < 3) nextErrors.username = "El username debe tener al menos 3 caracteres.";
+    else if (usernameState === "taken") nextErrors.username = usernameMessage;
     if (!values.email.trim()) nextErrors.email = "El correo es obligatorio.";
     else if (!EMAIL_PATTERN.test(values.email.trim())) nextErrors.email = "Ingresa un correo válido.";
     if (!values.password.trim()) nextErrors.password = "La contraseña es obligatoria.";
-    else if (values.password.length < 8) nextErrors.password = "Debe tener al menos 8 caracteres.";
-    if (usernameState === "taken") nextErrors.username = "Ese username ya existe.";
+    if (values.avatarUrl.trim() && !URL_PATTERN.test(values.avatarUrl.trim())) nextErrors.avatarUrl = "Ingresa una URL válida o deja este campo vacío.";
     setFieldErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -89,12 +92,12 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     setLoading(true);
     try {
       await registerWithEmail({
-        ...values,
         firstName: values.firstName.trim(),
         lastName: values.lastName.trim(),
         username: values.username.trim(),
-        email: values.email.trim().toLowerCase(),
         avatarUrl: values.avatarUrl.trim(),
+        email: values.email.trim().toLowerCase(),
+        password: values.password,
       });
       setSuccess("Registro completado.");
       onSuccess();
@@ -106,13 +109,14 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   };
 
   return (
-    <form className="form" onSubmit={handleSubmit} noValidate>
-      <div className="form__split">
-        <div className="field">
-          <label className="field__label" htmlFor="register-first-name">Nombres</label>
+    <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid min-w-0 gap-2">
+          <label className="text-sm font-medium text-slate-100" htmlFor="register-first-name">Nombres</label>
           <input
             id="register-first-name"
-            className="input"
+            className="h-12 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
+            type="text"
             value={values.firstName}
             autoComplete="given-name"
             aria-invalid={Boolean(fieldErrors.firstName)}
@@ -123,14 +127,15 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
             }}
             placeholder="Ana"
           />
-          {fieldErrors.firstName && <p className="field__error">{fieldErrors.firstName}</p>}
+          {fieldErrors.firstName && <p className="text-sm text-rose-300">{fieldErrors.firstName}</p>}
         </div>
 
-        <div className="field">
-          <label className="field__label" htmlFor="register-last-name">Apellidos</label>
+        <div className="grid min-w-0 gap-2">
+          <label className="text-sm font-medium text-slate-100" htmlFor="register-last-name">Apellidos</label>
           <input
             id="register-last-name"
-            className="input"
+            className="h-12 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
+            type="text"
             value={values.lastName}
             autoComplete="family-name"
             aria-invalid={Boolean(fieldErrors.lastName)}
@@ -139,54 +144,61 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
               if (fieldErrors.lastName) setFieldErrors((current) => ({ ...current, lastName: undefined }));
               if (error) setError("");
             }}
-            placeholder="Rios"
+            placeholder="Soto"
           />
-          {fieldErrors.lastName && <p className="field__error">{fieldErrors.lastName}</p>}
+          {fieldErrors.lastName && <p className="text-sm text-rose-300">{fieldErrors.lastName}</p>}
         </div>
       </div>
 
-      <div className="field">
-        <label className="field__label" htmlFor="register-username">Username</label>
-        <div className="input-row input-row--status">
-          <input
-            id="register-username"
-            className="input input--with-action"
-            value={values.username}
-            autoComplete="username"
-            aria-invalid={Boolean(fieldErrors.username) || usernameState === "taken"}
-            aria-describedby="register-username-help"
-            onChange={(event) => {
-              setValues((current) => ({ ...current, username: event.target.value }));
-              if (fieldErrors.username) setFieldErrors((current) => ({ ...current, username: undefined }));
-              if (error) setError("");
-            }}
-            placeholder="anarios"
-          />
-          <span className={`status-dot status-dot--${usernameState}`} aria-hidden="true" />
-        </div>
-        <p id="register-username-help" className={`field__hint field__hint--${usernameState}`}>
-          {usernameState === "available" ? "Username disponible." : usernameMessage}
+      <div className="grid gap-2">
+        <label className="text-sm font-medium text-slate-100" htmlFor="register-username">Username</label>
+        <input
+          id="register-username"
+          className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
+          type="text"
+          value={values.username}
+          autoComplete="username"
+          aria-invalid={Boolean(fieldErrors.username)}
+          onChange={(event) => {
+            setValues((current) => ({ ...current, username: event.target.value }));
+            if (fieldErrors.username) setFieldErrors((current) => ({ ...current, username: undefined }));
+            if (error) setError("");
+          }}
+          placeholder="anastudy"
+        />
+        <p className={`text-sm ${usernameState === "taken" ? "text-rose-300" : usernameState === "available" ? "text-emerald-300" : "text-slate-400"}`}>
+          {fieldErrors.username ?? usernameMessage}
         </p>
-        {fieldErrors.username && <p className="field__error">{fieldErrors.username}</p>}
       </div>
 
-      <div className="field">
-        <label className="field__label" htmlFor="register-avatar">Avatar</label>
+      <div className="grid gap-2">
+        <label className="text-sm font-medium text-slate-100" htmlFor="register-avatar">Avatar</label>
         <input
           id="register-avatar"
-          className="input"
+          className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
+          type="url"
           value={values.avatarUrl}
           autoComplete="photo"
-          onChange={(event) => setValues((current) => ({ ...current, avatarUrl: event.target.value }))}
-          placeholder="https://... o deja en blanco para usar uno automático"
+          aria-invalid={Boolean(fieldErrors.avatarUrl)}
+          onChange={(event) => {
+            setValues((current) => ({ ...current, avatarUrl: event.target.value }));
+            if (fieldErrors.avatarUrl) setFieldErrors((current) => ({ ...current, avatarUrl: undefined }));
+            if (error) setError("");
+          }}
+          placeholder="https://..."
         />
+        {fieldErrors.avatarUrl ? (
+          <p className="text-sm text-rose-300">{fieldErrors.avatarUrl}</p>
+        ) : (
+          <p className="text-sm text-slate-400">Puedes dejarlo vacío y se usará un avatar con tus iniciales.</p>
+        )}
       </div>
 
-      <div className="field">
-        <label className="field__label" htmlFor="register-email">Correo electrónico</label>
+      <div className="grid gap-2">
+        <label className="text-sm font-medium text-slate-100" htmlFor="register-email">Correo electrónico</label>
         <input
           id="register-email"
-          className="input"
+          className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
           type="email"
           value={values.email}
           autoComplete="email"
@@ -198,14 +210,14 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
           }}
           placeholder="ana@studyroom.app"
         />
-        {fieldErrors.email && <p className="field__error">{fieldErrors.email}</p>}
+        {fieldErrors.email && <p className="text-sm text-rose-300">{fieldErrors.email}</p>}
       </div>
 
-      <div className="field">
-        <label className="field__label" htmlFor="register-password">Contraseña</label>
+      <div className="grid gap-2">
+        <label className="text-sm font-medium text-slate-100" htmlFor="register-password">Contraseña</label>
         <input
           id="register-password"
-          className="input"
+          className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
           type="password"
           value={values.password}
           autoComplete="new-password"
@@ -215,19 +227,19 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
             if (fieldErrors.password) setFieldErrors((current) => ({ ...current, password: undefined }));
             if (error) setError("");
           }}
-          placeholder="Mínimo 8 caracteres"
+          placeholder="Mínimo 6 caracteres"
         />
-        {fieldErrors.password && <p className="field__error">{fieldErrors.password}</p>}
+        {fieldErrors.password && <p className="text-sm text-rose-300">{fieldErrors.password}</p>}
       </div>
 
-      {error && <p role="alert" aria-live="polite" className="feedback feedback--error">{error}</p>}
-      {success && <p role="status" aria-live="polite" className="feedback feedback--success">{success}</p>}
+      {error && <p role="alert" aria-live="polite" className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</p>}
+      {success && <p role="status" aria-live="polite" className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">{success}</p>}
 
-      <button type="submit" className="button button--primary button--full" disabled={loading}>
-        {loading ? <span className="button__loading"><span className="spinner" aria-hidden="true" /> Creando cuenta...</span> : "Registrarme"}
+      <button type="submit" className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 disabled:cursor-progress disabled:opacity-60" disabled={loading}>
+        {loading ? <span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" aria-hidden="true" /> Creando cuenta...</span> : "Registrarme"}
       </button>
 
-      <p className="form__note">El username se valida en tiempo real y el avatar puede ser una URL o dejarse vacío.</p>
+      <p className="text-sm text-slate-400">Crea tu cuenta con correo y contraseña.</p>
     </form>
   );
 }

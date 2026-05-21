@@ -1,176 +1,132 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { BookOpen, Clock3, LogOut, Settings, Sparkles } from "lucide-react";
 import type { AuthUser } from "../../auth/types";
-
-type StudyRoom = {
-  id: string;
-  name: string;
-  description: string;
-  subject: string;
-  isPrivate?: boolean;
-  inviteCode?: string;
-  ownerId: string;
-  members: { userId: string; name: string }[];
-  maxMembers: number;
-  tags: string[];
-  updatedAt: string;
-};
-
-const MOCK_ROOMS: StudyRoom[] = [
-  { id: "room-1", name: "Cálculo Diferencial — Grupo A", description: "Repaso de límites, derivadas e integrales.", subject: "Matemáticas", ownerId: "user-1", members: [{ userId: "user-1", name: "Demo Usuario" }], maxMembers: 10, tags: ["cálculo", "examen"], updatedAt: new Date().toISOString() },
-  { id: "room-2", name: "React & TypeScript — Avanzado", description: "Patrones y optimización.", subject: "Programación", ownerId: "user-1", members: [{ userId: "user-1", name: "Demo Usuario" }, { userId: "user-2", name: "Ana García" }], maxMembers: 6, tags: ["react", "typescript"], updatedAt: new Date().toISOString() },
-];
-
-function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {
-  const letter = name ? name.charAt(0).toUpperCase() : "U";
-  const sz = size === "sm" ? "w-7 h-7 text-xs" : size === "lg" ? "w-12 h-12 text-lg" : "w-9 h-9 text-sm";
-  return (
-    <div className={`${sz} rounded-full bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white`} style={{ fontWeight: 700 }}>
-      {letter}
-    </div>
-  );
-}
 
 interface DashboardProps {
   user: AuthUser;
   onLogout: () => void;
   flashMessage?: string;
-  backendConnected: boolean;
+  onOpenSettings: () => void;
+  onOpenProfile: () => void;
 }
 
-export function Dashboard({ user, onLogout, flashMessage, backendConnected }: DashboardProps) {
-  const [search, setSearch] = useState("");
-  const [subjectFilter, setSubjectFilter] = useState("Todas");
-  const rooms = useMemo(() => MOCK_ROOMS, []);
+export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpenProfile }: DashboardProps) {
+  const [avatarError, setAvatarError] = useState(false);
+  const userInitials = `${user.firstName} ${user.lastName}`
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
 
-  const allSubjects = useMemo(() => ["Todas", ...Array.from(new Set(rooms.map((r) => r.subject)))], [rooms]);
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user.avatarUrl, user.id]);
 
-  const filtered = rooms.filter((r) => {
-    const matchSearch = !search || r.name.toLowerCase().includes(search.toLowerCase()) || r.description.toLowerCase().includes(search.toLowerCase());
-    const matchSubject = subjectFilter === "Todas" || r.subject === subjectFilter;
-    return matchSearch && matchSubject;
-  });
-
-  function formatDate(iso: string) {
-    const d = new Date(iso);
-    return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
-  }
+  const hasRenderableAvatar = Boolean(user.avatarUrl && !avatarError && /^https?:\/\//i.test(user.avatarUrl));
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden">
-      <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
-        <div className="flex items-center gap-3 px-6 h-16 border-b border-slate-800">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9" /></svg>
-          </div>
-          <span className="text-white font-bold">StudyRoom</span>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-2">
-          <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl bg-indigo-600 text-white">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2" /></svg>
-            Mi salas
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 21l-6-6" /></svg>
-            Explorar salas
-          </button>
-
-          <div className="pt-4">
-            <p className="text-xs text-slate-600 px-4 mb-2 uppercase tracking-wider">Mis salas</p>
-            {rooms.slice(0, 5).map((r) => (
-              <button key={r.id} className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 text-sm">
-                <div className={`w-2 h-2 rounded-full ${r.members.length > 0 ? "bg-emerald-500" : "bg-slate-600"}`} />
-                <span className="truncate">{r.name}</span>
-              </button>
-            ))}
-          </div>
-        </nav>
-
-        <div className="border-t border-slate-800 p-4">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(124,116,255,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(96,165,250,0.08),transparent_26%),linear-gradient(180deg,#070a1f_0%,#030617_100%)] p-4 text-slate-100">
+      <div className="mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-7xl grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="flex flex-col gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur-xl">
           <div className="flex items-center gap-3">
-            <Avatar name={user.firstName || user.username} />
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-sm truncate font-medium">{user.firstName} {user.lastName}</p>
-              <p className="text-slate-500 text-xs truncate">{user.email}</p>
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 text-white shadow-lg shadow-violet-500/20">
+              <BookOpen className="h-5 w-5" />
             </div>
-            <button onClick={onLogout} className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800">Salir</button>
-          </div>
-        </div>
-      </aside>
-
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 border-b border-slate-800 flex items-center gap-4 px-6">
-          <div className="relative flex-1 max-w-md">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-white text-sm" placeholder="Buscar salas..." />
-          </div>
-          <div className="ml-auto text-slate-400">Backend: {backendConnected ? "OK" : "offline"}</div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          {flashMessage && (
-            <div className="mb-4 p-3 rounded-lg bg-emerald-600 text-white">{flashMessage}</div>
-          )}
-          <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-white text-2xl font-bold">Salas</h1>
-              <p className="text-slate-400 text-sm mt-0.5">{rooms.length} salas disponibles</p>
+              <strong className="block text-base text-slate-100">StudyRoom</strong>
+              <p className="text-sm text-slate-400">Salas colaborativas</p>
             </div>
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl">Nueva sala</button>
           </div>
 
-          <div className="flex gap-2 flex-wrap mb-6">
-            {allSubjects.map((s) => (
-              <button key={s} onClick={() => setSubjectFilter(s)} className={`px-4 py-1.5 rounded-full text-sm ${subjectFilter === s ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-400 border border-slate-700"}`}>
-                {s}
+          <nav className="grid gap-2">
+            <button type="button" className="flex h-12 items-center gap-3 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-500/20">
+              <Sparkles className="h-4 w-4" /> Salas
+            </button>
+            <button type="button" className="flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-slate-200 transition hover:bg-white/10" onClick={onOpenProfile}>
+              <BookOpen className="h-4 w-4" /> Mi perfil
+            </button>
+            <button type="button" className="flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-slate-200 transition hover:bg-white/10" onClick={onOpenSettings}>
+              <Settings className="h-4 w-4" /> Configuración
+            </button>
+          </nav>
+
+          <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/40 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Estado</p>
+           
+            <div className="mt-4 text-sm text-slate-400">
+              No tienes salas todavía.
+            </div>
+          </div>
+
+          <div className="mt-auto flex items-center gap-3 border-t border-white/10 pt-4">
+            <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 text-sm font-bold text-white ring-1 ring-white/10">
+              {hasRenderableAvatar ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={`Avatar de ${user.firstName} ${user.lastName}`.trim()}
+                  className="h-full w-full object-cover"
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                userInitials
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <strong className="block truncate text-sm text-slate-100">{`${user.firstName} ${user.lastName}`.trim() || user.username}</strong>
+              <p className="truncate text-sm text-slate-400">{user.email}</p>
+            </div>
+            <button type="button" className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" onClick={onLogout} title="Cerrar sesión">
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </aside>
+
+        <main className="flex flex-col gap-5 rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur-xl">
+          <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3 text-slate-300">
+              <div className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5">
+                <Clock3 className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Panel principal</p>
+                <h1 className="mt-1 text-2xl font-semibold text-slate-100">Salas</h1>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10" onClick={onOpenProfile}>
+                Mi perfil
               </button>
-            ))}
-          </div>
-
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-              <div className="w-12 h-12 mb-4 bg-slate-800 rounded-lg" />
-              <p>No se encontraron salas</p>
+              <button type="button" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10" onClick={onOpenSettings}>
+                Configuración
+              </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map((room) => (
-                <div key={room.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">{room.subject}</span>
-                        {room.isPrivate ? <span className="text-xs text-amber-400">Privada</span> : <span className="text-xs text-emerald-400">Pública</span>}
-                      </div>
-                      <h3 className="text-white font-semibold truncate">{room.name}</h3>
-                    </div>
-                  </div>
+          </header>
 
-                  <p className="text-slate-400 text-sm line-clamp-2">{room.description}</p>
+          {flashMessage && <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">{flashMessage}</div>}
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex -space-x-2">
-                        {room.members.slice(0, 4).map((m) => (
-                          <div key={m.userId} className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-xs border-2 border-slate-900" style={{ fontWeight: 600 }}>{m.name.charAt(0)}</div>
-                        ))}
-                      </div>
-                      <span className="text-slate-500 text-xs">{room.members.length}/{room.maxMembers}</span>
-                    </div>
-                    <div className="text-slate-500 text-xs">{formatDate(room.updatedAt)}</div>
-                  </div>
-
-                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.round((room.members.length / room.maxMembers) * 100)}%` }} />
-                  </div>
-
-                  <button className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300">Unirse</button>
-                </div>
-              ))}
+          <section className="flex min-h-[420px] flex-col items-center justify-center rounded-[2rem] border border-dashed border-white/10 bg-slate-950/40 px-6 py-10 text-center">
+            <div className="mb-5 grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/5 text-cyan-300">
+              <Sparkles className="h-5 w-5" />
             </div>
-          )}
-        </div>
-      </main>
+            <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-300">Estado vacío</div>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-100">No tienes salas</h2>
+            <p className="mt-3 max-w-xl text-base leading-8 text-slate-400">
+              Cuando crees o te unas a una sala, aparecerá aquí. 
+            </p>
+
+            <div className="mt-8 w-full max-w-2xl space-y-3" aria-hidden="true">
+              <div className="h-24 animate-pulse rounded-[1.5rem] border border-white/10 bg-gradient-to-r from-white/5 via-white/10 to-white/5" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="h-16 animate-pulse rounded-[1.25rem] border border-white/10 bg-gradient-to-r from-white/5 via-white/10 to-white/5" />
+                <div className="h-16 animate-pulse rounded-[1.25rem] border border-white/10 bg-gradient-to-r from-white/5 via-white/10 to-white/5" />
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
     </div>
   );
 }

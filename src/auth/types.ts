@@ -30,10 +30,19 @@ export interface AuthUser {
   avatarUrl?: string;
   provider: "password" | "google";
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ProfileFormValues {
+  firstName: string;
+  lastName: string;
+  username: string;
+  email: string;
+  avatarUrl: string;
 }
 
 export interface AuthSession {
-  token: string;
+  accessToken: string;
   refreshToken: string;
   user: AuthUser;
 }
