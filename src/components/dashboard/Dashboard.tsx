@@ -12,7 +12,7 @@ interface DashboardProps {
 
 export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpenProfile }: DashboardProps) {
   const [avatarError, setAvatarError] = useState(false);
-  const displayName = [user.names, user.lastNames || user.lastnames || user.lastName]
+  const displayName = [user.names, user.lastNames]
     .filter((part): part is string => Boolean(part && part.trim()))
     .join(" ")
     .trim();

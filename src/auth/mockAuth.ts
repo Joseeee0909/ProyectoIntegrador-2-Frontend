@@ -8,7 +8,6 @@ const GOOGLE_PENDING_KEY = "studyroom_pending_google_profile";
 const USERS_KEY = "studyroom_mock_accounts";
 
 interface MockAccount extends AuthUser {
-  lastnames?: string;
   password: string;
 }
 
@@ -18,8 +17,6 @@ const SEED_ACCOUNTS: MockAccount[] = [
     id: "user-demo",
     names: "Demo",
     lastNames: "Usuario",
-    lastnames: "Usuario",
-    lastName: "Usuario",
     username: "demo_study",
     email: "demo@studyroom.app",
     avatar: "https://api.dicebear.com/9.x/initials/svg?seed=Demo%20Usuario",
@@ -32,8 +29,6 @@ const SEED_ACCOUNTS: MockAccount[] = [
     id: "user-maria",
     names: "Maria",
     lastNames: "Soto",
-    lastnames: "Soto",
-    lastName: "Soto",
     username: "mariastudy",
     email: "maria@studyroom.app",
     avatar: "https://api.dicebear.com/9.x/initials/svg?seed=Maria%20Soto",
@@ -46,8 +41,6 @@ const SEED_ACCOUNTS: MockAccount[] = [
     id: "firebase-demo-uid",
     names: "Ana",
     lastNames: "Rios",
-    lastnames: "Rios",
-    lastName: "Rios",
     username: "anarios",
     email: "ana.rios@studyroom.app",
     avatar: "https://api.dicebear.com/9.x/initials/svg?seed=Ana%20Rios",
@@ -136,8 +129,6 @@ function buildUserFromEmail(email: string, names?: string, lastNames?: string): 
     id: normalizedEmail,
     names: derivednames,
     lastNames: derivedLastNames,
-    lastnames: derivedLastNames,
-    lastName: derivedLastNames,
     username: normalizeUsername(localPart),
     email: normalizedEmail,
     avatar: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(`${derivednames} ${derivedLastNames}`.trim() || normalizedEmail)}`,
@@ -166,8 +157,6 @@ function buildRegisterUser(values: RegisterFormValues, uid: string, firestoreId?
     id: uid,
     names,
     lastNames,
-    lastnames: lastNames,
-    lastName: lastNames,
     username: normalizeUsername(values.username),
     email: normalizedEmail,
     avatar: buildAvatarUrl(names, lastNames, normalizedEmail, values.avatar),
@@ -189,8 +178,8 @@ function buildRegisterRequest(values: RegisterFormValues): RegisterRequest {
   };
 }
 
-function getFormLastNames(values: { lastnames?: string; lastName?: string }) {
-  return values.lastName?.trim() || values.lastnames?.trim() || "";
+function getFormLastNames(values: { lastNames?: string; lastName?: string; lastnames?: string }) {
+  return values.lastNames?.trim() || values.lastName?.trim() || values.lastnames?.trim() || "";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -221,7 +210,6 @@ function backendUserToAuthUser(user: User | AuthUser, firestoreId?: string): Aut
     id: user.uid,
     names: user.names,
     lastNames: user.lastNames,
-    lastName: user.lastNames,
     username: user.username,
     email: user.email.trim().toLowerCase(),
     avatar: user.avatar ?? "",
@@ -379,8 +367,6 @@ async function persistUserToFirestore(user: AuthUser) {
     id: user.id,
     names: user.names,
     lastNames: user.lastNames,
-    lastnames: user.lastNames,
-    lastName: user.lastName,
     username: user.username,
     email: user.email,
     avatar: user.avatar ?? null,
@@ -836,8 +822,6 @@ export async function updateProfile(values: ProfileFormValues) {
     ...currentUser,
     names: values.names.trim(),
     lastNames: getFormLastNames(values),
-    lastnames: getFormLastNames(values),
-    lastName: getFormLastNames(values),
     username: normalizedUsername,
     email: normalizedEmail,
     avatar: values.avatar.trim() || currentUser.avatar,

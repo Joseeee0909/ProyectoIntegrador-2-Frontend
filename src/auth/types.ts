@@ -30,8 +30,7 @@ export interface User {
 
 export interface RegisterFormValues {
   names: string;
-  lastnames: string;
-  lastName?: string;
+  lastNames: string;
   username: string;
   avatar: string;
   email: string;
@@ -51,8 +50,6 @@ export interface AuthUser {
   id: string;
   names: string;
   lastNames: string;
-  lastnames?: string;
-  lastName?: string;
   username: string;
   email: string;
   firestoreId?: string;
@@ -64,8 +61,7 @@ export interface AuthUser {
 
 export interface ProfileFormValues {
   names: string;
-  lastnames: string;
-  lastName?: string;
+  lastNames: string;
   username: string;
   email: string;
   avatar: string;

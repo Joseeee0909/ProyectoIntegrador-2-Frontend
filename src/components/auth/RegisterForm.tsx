@@ -14,7 +14,7 @@ type AvailabilityState = "idle" | "checking" | "available" | "taken" | "error" |
 export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const [values, setValues] = useState<RegisterFormValues>({
     names: "",
-    lastnames: "",
+    lastNames: "",
     username: "",
     avatar: "",
     email: "",
@@ -70,7 +70,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const validate = () => {
     const nextErrors: Partial<Record<keyof RegisterFormValues, string>> = {};
     if (!values.names.trim()) nextErrors.names = "Ingresa tus nombres.";
-    if (!values.lastnames.trim()) nextErrors.lastnames = "Ingresa tus apellidos.";
+    if (!values.lastNames.trim()) nextErrors.lastNames = "Ingresa tus apellidos.";
     if (!values.username.trim()) nextErrors.username = "El username es obligatorio.";
     else if (values.username.trim().length < 3) nextErrors.username = "El username debe tener al menos 3 caracteres.";
     else if (usernameState === "taken") nextErrors.username = usernameMessage;
@@ -93,7 +93,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     try {
       await registerWithEmail({
         names: values.names.trim(),
-        lastnames: values.lastnames.trim(),
+        lastNames: values.lastNames.trim(),
         username: values.username.trim(),
         avatar: values.avatar.trim(),
         email: values.email.trim().toLowerCase(),
@@ -136,17 +136,17 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
             id="register-last-name"
             className="h-12 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
             type="text"
-            value={values.lastnames}
+            value={values.lastNames}
             autoComplete="family-name"
-            aria-invalid={Boolean(fieldErrors.lastnames)}
+            aria-invalid={Boolean(fieldErrors.lastNames)}
             onChange={(event) => {
-              setValues((current) => ({ ...current, lastnames: event.target.value }));
-              if (fieldErrors.lastnames) setFieldErrors((current) => ({ ...current, lastnames: undefined }));
+              setValues((current) => ({ ...current, lastNames: event.target.value }));
+              if (fieldErrors.lastNames) setFieldErrors((current) => ({ ...current, lastNames: undefined }));
               if (error) setError("");
             }}
             placeholder="Soto"
           />
-          {fieldErrors.lastnames && <p className="text-sm text-rose-300">{fieldErrors.lastnames}</p>}
+            {fieldErrors.lastNames && <p className="text-sm text-rose-300">{fieldErrors.lastNames}</p>}
         </div>
       </div>
 

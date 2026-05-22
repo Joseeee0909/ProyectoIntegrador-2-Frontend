@@ -16,7 +16,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
   const initialEmail = user.email.trim().toLowerCase();
   const [values, setValues] = useState<ProfileFormValues>({
     names: user.names,
-    lastnames: user.lastNames,
+    lastNames: user.lastNames,
     username: user.username,
     email: user.email,
     avatar: user.avatar ?? "",
@@ -76,7 +76,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
   const validate = () => {
     const nextErrors: Partial<Record<keyof ProfileFormValues, string>> = {};
     if (!values.names.trim()) nextErrors.names = "Ingresa tus nombres.";
-    if (!values.lastnames.trim()) nextErrors.lastnames = "Ingresa tus apellidos.";
+    if (!values.lastNames.trim()) nextErrors.lastNames = "Ingresa tus apellidos.";
     if (!values.username.trim()) nextErrors.username = "El username es obligatorio.";
     setFieldErrors(nextErrors);
 
@@ -101,7 +101,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
     try {
       await updateProfile({
         names: values.names.trim(),
-        lastnames: values.lastnames.trim(),
+        lastNames: values.lastNames.trim(),
         username: values.username.trim(),
         email: initialEmail,
         avatar: values.avatar.trim(),
@@ -121,7 +121,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
     }
   };
 
-  const avatarInitials = `${values.names} ${values.lastnames}`
+  const avatarInitials = `${values.names} ${values.lastNames}`
     .trim()
     .split(/\s+/)
     .filter(Boolean)
@@ -166,7 +166,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
                 {hasRenderableAvatar ? <img src={values.avatar} alt="Avatar actual" className="h-full w-full object-cover" onError={() => setAvatarErrored(true)} /> : avatarInitials}
               </div>
               <div>
-                <strong className="block text-base font-semibold text-slate-100">{`${values.names} ${values.lastnames}`.trim() || "Tu nombre"}</strong>
+                <strong className="block text-base font-semibold text-slate-100">{`${values.names} ${values.lastNames}`.trim() || "Tu nombre"}</strong>
                 <p className="text-sm text-slate-400">{values.email || "tu-correo@ejemplo.com"}</p>
               </div>
             </div>
@@ -205,15 +205,15 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
                 <input
                   id="profile-last-name"
                   className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
-                  value={values.lastnames}
+                  value={values.lastNames}
                   onChange={(event) => {
-                    setValues((current) => ({ ...current, lastnames: event.target.value }));
-                    if (fieldErrors.lastnames) setFieldErrors((current) => ({ ...current, lastnames: undefined }));
+                    setValues((current) => ({ ...current, lastNames: event.target.value }));
+                    if (fieldErrors.lastNames) setFieldErrors((current) => ({ ...current, lastNames: undefined }));
                     if (error) setError("");
                   }}
                   placeholder="Muñoz"
                 />
-                {fieldErrors.lastnames && <p className="text-sm text-rose-300">{fieldErrors.lastnames}</p>}
+                {fieldErrors.lastNames && <p className="text-sm text-rose-300">{fieldErrors.lastNames}</p>}
               </div>
             </div>
 
