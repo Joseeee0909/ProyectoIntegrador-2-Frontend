@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, BookOpen, LogOut, ShieldCheck, Sparkles } from "lucide-react";
+import { ToastProvider } from "./components/ui/Toast";
 import { AuthPage } from "./components/auth/AuthPage";
 import { UsernameSelection } from "./components/auth/UsernameSelection";
 import { Dashboard } from "./components/dashboard/Dashboard";
@@ -11,7 +12,9 @@ import type { AuthSession, GoogleAuthProfile } from "./auth/types";
 function App() {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <ToastProvider>
+        <AppRoutes />
+      </ToastProvider>
     </BrowserRouter>
   );
 }

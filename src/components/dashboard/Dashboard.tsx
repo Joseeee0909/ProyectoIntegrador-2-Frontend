@@ -12,7 +12,7 @@ interface DashboardProps {
 
 export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpenProfile }: DashboardProps) {
   const [avatarError, setAvatarError] = useState(false);
-  const displayName = [user.names, user.lastNames]
+  const displayName = [user.names, user.lastNames || user.lastnames || user.lastName]
     .filter((part): part is string => Boolean(part && part.trim()))
     .join(" ")
     .trim();
@@ -56,13 +56,7 @@ export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpen
             </button>
           </nav>
 
-          <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/40 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Estado</p>
-           
-            <div className="mt-4 text-sm text-slate-400">
-              No tienes salas todavía.
-            </div>
-          </div>
+          
 
           <div className="mt-auto flex items-center gap-3 border-t border-white/10 pt-4">
             <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 text-sm font-bold text-white ring-1 ring-white/10">
@@ -109,7 +103,7 @@ export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpen
             </div>
           </header>
 
-          {flashMessage && <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">{flashMessage}</div>}
+          
 
           <section className="flex min-h-[420px] flex-col items-center justify-center rounded-[2rem] border border-dashed border-white/10 bg-slate-950/40 px-6 py-10 text-center">
             <div className="mb-5 grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/5 text-cyan-300">

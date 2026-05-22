@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, BadgeCheck, Camera, Mail, Save, Sparkles, UserRound } from "lucide-react";
 import { AuthError, checkUsernameAvailability, updateProfile } from "../../auth/mockAuth";
+import { useToast } from "../ui/Toast";
 import type { AuthUser, ProfileFormValues } from "../../auth/types";
 
 interface ProfilePageProps {
@@ -28,6 +29,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
   const [usernameState, setUsernameState] = useState<AvailabilityState>("idle");
   const [usernameMessage, setUsernameMessage] = useState("El username debe ser único.");
   const [avatarErrored, setAvatarErrored] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     const normalized = values.username.trim();
@@ -107,14 +109,18 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
         avatar: values.avatar.trim(),
       });
       setSuccess("Perfil actualizado correctamente.");
+      toast.success("Perfil actualizado correctamente.");
       onSaved("Tus datos se actualizaron con éxito.");
     } catch (submissionError) {
       const authError = submissionError instanceof AuthError ? submissionError : null;
       if (authError?.code === "username_taken") {
         setFieldErrors((current) => ({ ...current, username: "Ese username ya existe." }));
         setError(authError.message);
+        toast.error(authError.message);
       } else {
-        setError(authError?.message ?? "No pudimos actualizar tu perfil. Intenta otra vez.");
+        const msg = authError?.message ?? "No pudimos actualizar tu perfil. Intenta otra vez.";
+        setError(msg);
+        toast.error(msg);
       }
     } finally {
       setLoading(false);
