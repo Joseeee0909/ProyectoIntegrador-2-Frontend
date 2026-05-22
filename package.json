@@ -10,8 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "firebase": "^12.13.0",
+    "lucide-react": "^0.487.0",
+    "notion": "^0.0.1",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "react-router-dom": "^6.30.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
