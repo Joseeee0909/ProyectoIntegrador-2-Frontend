@@ -12,7 +12,7 @@ interface DashboardProps {
 
 export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpenProfile }: DashboardProps) {
   const [avatarError, setAvatarError] = useState(false);
-  const userInitials = `${user.firstName} ${user.lastName}`
+  const userInitials = `${user.names} ${user.lastnames}`
     .trim()
     .split(/\s+/)
     .filter(Boolean)
@@ -22,9 +22,9 @@ export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpen
 
   useEffect(() => {
     setAvatarError(false);
-  }, [user.avatarUrl, user.id]);
+  }, [user.avatar, user.id]);
 
-  const hasRenderableAvatar = Boolean(user.avatarUrl && !avatarError && /^https?:\/\//i.test(user.avatarUrl));
+  const hasRenderableAvatar = Boolean(user.avatar && !avatarError && /^https?:\/\//i.test(user.avatar));
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(124,116,255,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(96,165,250,0.08),transparent_26%),linear-gradient(180deg,#070a1f_0%,#030617_100%)] p-4 text-slate-100">
@@ -64,8 +64,8 @@ export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpen
             <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 text-sm font-bold text-white ring-1 ring-white/10">
               {hasRenderableAvatar ? (
                 <img
-                  src={user.avatarUrl}
-                  alt={`Avatar de ${user.firstName} ${user.lastName}`.trim()}
+                  src={user.avatar}
+                  alt={`Avatar de ${user.names} ${user.lastnames}`.trim()}
                   className="h-full w-full object-cover"
                   onError={() => setAvatarError(true)}
                 />
@@ -74,7 +74,7 @@ export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpen
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <strong className="block truncate text-sm text-slate-100">{`${user.firstName} ${user.lastName}`.trim() || user.username}</strong>
+              <strong className="block truncate text-sm text-slate-100">{`${user.names} ${user.lastnames}`.trim() || user.username}</strong>
               <p className="truncate text-sm text-slate-400">{user.email}</p>
             </div>
             <button type="button" className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" onClick={onLogout} title="Cerrar sesión">

@@ -15,11 +15,11 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
   const initialUsername = user.username.trim().toLowerCase();
   const initialEmail = user.email.trim().toLowerCase();
   const [values, setValues] = useState<ProfileFormValues>({
-    firstName: user.firstName,
-    lastName: user.lastName,
+    names: user.names,
+    lastnames: user.lastNames,
     username: user.username,
     email: user.email,
-    avatarUrl: user.avatarUrl ?? "",
+    avatar: user.avatar ?? "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -123,8 +123,8 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
 
   const validate = () => {
     const nextErrors: Partial<Record<keyof ProfileFormValues, string>> = {};
-    if (!values.firstName.trim()) nextErrors.firstName = "Ingresa tus nombres.";
-    if (!values.lastName.trim()) nextErrors.lastName = "Ingresa tus apellidos.";
+    if (!values.names.trim()) nextErrors.names = "Ingresa tus nombres.";
+    if (!values.lastnames.trim()) nextErrors.lastnames = "Ingresa tus apellidos.";
     if (!values.username.trim()) nextErrors.username = "El username es obligatorio.";
     if (!values.email.trim()) nextErrors.email = "El correo es obligatorio.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) nextErrors.email = "Ingresa un correo válido.";
@@ -154,11 +154,11 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
     setLoading(true);
     try {
       await updateProfile({
-        firstName: values.firstName.trim(),
-        lastName: values.lastName.trim(),
+        names: values.names.trim(),
+        lastnames: values.lastnames.trim(),
         username: values.username.trim(),
         email: values.email.trim().toLowerCase(),
-        avatarUrl: values.avatarUrl.trim(),
+        avatar: values.avatar.trim(),
       });
       setSuccess("Perfil actualizado correctamente.");
       onSaved("Tus datos se actualizaron con éxito.");
@@ -178,14 +178,14 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
     }
   };
 
-  const avatarInitials = `${values.firstName} ${values.lastName}`
+  const avatarInitials = `${values.names} ${values.lastnames}`
     .trim()
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
-  const hasRenderableAvatar = Boolean(values.avatarUrl && !avatarErrored && /^https?:\/\//i.test(values.avatarUrl));
+  const hasRenderableAvatar = Boolean(values.avatar && !avatarErrored && /^https?:\/\//i.test(values.avatar));
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(124,116,255,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(96,165,250,0.08),transparent_26%),linear-gradient(180deg,#070a1f_0%,#030617_100%)] p-4 text-slate-100">
@@ -220,10 +220,10 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Vista previa</p>
             <div className="mt-4 flex items-center gap-4">
               <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 text-lg font-bold text-white ring-1 ring-white/10">
-                {hasRenderableAvatar ? <img src={values.avatarUrl} alt="Avatar actual" className="h-full w-full object-cover" onError={() => setAvatarErrored(true)} /> : avatarInitials}
+                {hasRenderableAvatar ? <img src={values.avatar} alt="Avatar actual" className="h-full w-full object-cover" onError={() => setAvatarErrored(true)} /> : avatarInitials}
               </div>
               <div>
-                <strong className="block text-base font-semibold text-slate-100">{`${values.firstName} ${values.lastName}`.trim() || "Tu nombre"}</strong>
+                <strong className="block text-base font-semibold text-slate-100">{`${values.names} ${values.lastnames}`.trim() || "Tu nombre"}</strong>
                 <p className="text-sm text-slate-400">{values.email || "tu-correo@ejemplo.com"}</p>
               </div>
             </div>
@@ -246,15 +246,15 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
                 <input
                   id="profile-first-name"
                   className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
-                  value={values.firstName}
+                  value={values.names}
                   onChange={(event) => {
-                    setValues((current) => ({ ...current, firstName: event.target.value }));
-                    if (fieldErrors.firstName) setFieldErrors((current) => ({ ...current, firstName: undefined }));
+                    setValues((current) => ({ ...current, names: event.target.value }));
+                    if (fieldErrors.names) setFieldErrors((current) => ({ ...current, names: undefined }));
                     if (error) setError("");
                   }}
                   placeholder="José Luis"
                 />
-                {fieldErrors.firstName && <p className="text-sm text-rose-300">{fieldErrors.firstName}</p>}
+                {fieldErrors.names && <p className="text-sm text-rose-300">{fieldErrors.names}</p>}
               </div>
 
               <div className="grid gap-2">
@@ -262,15 +262,15 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
                 <input
                   id="profile-last-name"
                   className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
-                  value={values.lastName}
+                  value={values.lastnames}
                   onChange={(event) => {
-                    setValues((current) => ({ ...current, lastName: event.target.value }));
-                    if (fieldErrors.lastName) setFieldErrors((current) => ({ ...current, lastName: undefined }));
+                    setValues((current) => ({ ...current, lastnames: event.target.value }));
+                    if (fieldErrors.lastnames) setFieldErrors((current) => ({ ...current, lastnames: undefined }));
                     if (error) setError("");
                   }}
                   placeholder="Muñoz"
                 />
-                {fieldErrors.lastName && <p className="text-sm text-rose-300">{fieldErrors.lastName}</p>}
+                {fieldErrors.lastnames && <p className="text-sm text-rose-300">{fieldErrors.lastnames}</p>}
               </div>
             </div>
 
@@ -325,9 +325,9 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
               <input
                 id="profile-avatar"
                 className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
-                value={values.avatarUrl}
+                value={values.avatar}
                 onChange={(event) => {
-                  setValues((current) => ({ ...current, avatarUrl: event.target.value }));
+                  setValues((current) => ({ ...current, avatar: event.target.value }));
                   if (error) setError("");
                 }}
                 placeholder="https://..."

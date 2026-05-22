@@ -1,46 +1,56 @@
-import { createUserWithEmailAndPassword, signInWithPopup, signOut as firebaseSignOut, updateProfile as firebaseUpdateProfile } from "firebase/auth";
+import { signInWithCustomToken, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth";
 import { collection, doc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { getFirebaseAuth, getGoogleProvider, getFirestoreDb } from "./firebase";
-import type { AuthBootstrapState, AuthSession, AuthUser, GoogleAuthProfile, LoginFormValues, ProfileFormValues, RegisterFormValues } from "./types";
+import type { AuthBootstrapState, AuthSession, AuthUser, GoogleAuthProfile, LoginFormValues, LoginRequest, ProfileFormValues, RegisterFormValues, RegisterRequest, User } from "./types";
 
 const AUTH_SESSION_KEY = "studyroom_auth_session";
 const GOOGLE_PENDING_KEY = "studyroom_pending_google_profile";
 const USERS_KEY = "studyroom_mock_accounts";
 
 interface MockAccount extends AuthUser {
+  lastnames?: string;
   password: string;
 }
 
 const SEED_ACCOUNTS: MockAccount[] = [
   {
+    uid: "user-demo",
     id: "user-demo",
-    firstName: "Demo",
+    names: "Demo",
+    lastNames: "Usuario",
+    lastnames: "Usuario",
     lastName: "Usuario",
     username: "demo_study",
     email: "demo@studyroom.app",
-    avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Demo%20Usuario",
+    avatar: "https://api.dicebear.com/9.x/initials/svg?seed=Demo%20Usuario",
     provider: "password",
     createdAt: new Date("2026-05-01T10:00:00Z").toISOString(),
     password: "Password123",
   },
   {
+    uid: "user-maria",
     id: "user-maria",
-    firstName: "Maria",
+    names: "Maria",
+    lastNames: "Soto",
+    lastnames: "Soto",
     lastName: "Soto",
     username: "mariastudy",
     email: "maria@studyroom.app",
-    avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Maria%20Soto",
+    avatar: "https://api.dicebear.com/9.x/initials/svg?seed=Maria%20Soto",
     provider: "password",
     createdAt: new Date("2026-05-08T10:00:00Z").toISOString(),
     password: "Password123",
   },
   {
+    uid: "firebase-demo-uid",
     id: "firebase-demo-uid",
-    firstName: "Ana",
+    names: "Ana",
+    lastNames: "Rios",
+    lastnames: "Rios",
     lastName: "Rios",
     username: "anarios",
     email: "ana.rios@studyroom.app",
-    avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Ana%20Rios",
+    avatar: "https://api.dicebear.com/9.x/initials/svg?seed=Ana%20Rios",
     provider: "google",
     createdAt: new Date("2026-05-12T10:00:00Z").toISOString(),
     firestoreId: "firebase-demo-uid",
@@ -94,10 +104,10 @@ function normalizeUsername(username: string) {
 }
 
 function splitDisplayName(displayName: string) {
-  const [firstName = "", ...rest] = displayName.trim().split(/\s+/);
+  const [names = "", ...rest] = displayName.trim().split(/\s+/);
   return {
-    firstName: firstName || "Usuario",
-    lastName: rest.join(" ") || "Google",
+    names: names || "Usuario",
+    lastNames: rest.join(" ") || "Google",
   };
 }
 
@@ -113,52 +123,118 @@ function capitalize(value: string) {
   return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }
 
-function buildUserFromEmail(email: string, firstName?: string, lastName?: string): AuthUser {
+function buildUserFromEmail(email: string, names?: string, lastNames?: string): AuthUser {
   const normalizedEmail = email.trim().toLowerCase();
   const localPart = normalizedEmail.split("@")[0] || "usuario";
   const readableName = localPart.replace(/[._-]+/g, " ").trim();
   const nameParts = readableName ? readableName.split(/\s+/) : ["usuario"];
-  const derivedFirstName = firstName?.trim() || capitalize(nameParts[0] || "usuario");
-  const derivedLastName = lastName?.trim() || nameParts.slice(1).map(capitalize).join(" ");
+  const derivednames = names?.trim() || capitalize(nameParts[0] || "usuario");
+  const derivedLastNames = lastNames?.trim() || nameParts.slice(1).map(capitalize).join(" ");
 
   return {
+    uid: normalizedEmail,
     id: normalizedEmail,
-    firstName: derivedFirstName,
-    lastName: derivedLastName,
+    names: derivednames,
+    lastNames: derivedLastNames,
+    lastnames: derivedLastNames,
+    lastName: derivedLastNames,
     username: normalizeUsername(localPart),
     email: normalizedEmail,
-    avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(`${derivedFirstName} ${derivedLastName}`.trim() || normalizedEmail)}`,
+    avatar: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(`${derivednames} ${derivedLastNames}`.trim() || normalizedEmail)}`,
     provider: "password",
     createdAt: new Date().toISOString(),
   };
 }
 
-function buildAvatarUrl(firstName: string, lastName: string, email: string, avatarUrl?: string) {
-  const trimmedAvatarUrl = avatarUrl?.trim() ?? "";
-  if (trimmedAvatarUrl) {
-    return trimmedAvatarUrl;
+function buildAvatarUrl(names: string, lastNames: string, email: string, avatar?: string) {
+  const trimmedavatar = avatar?.trim() ?? "";
+  if (trimmedavatar) {
+    return trimmedavatar;
   }
 
-  const seed = `${firstName} ${lastName}`.trim() || email.trim().toLowerCase();
+  const seed = `${names} ${lastNames}`.trim() || email.trim().toLowerCase();
   return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(seed)}`;
 }
 
-function buildRegisterUser(values: RegisterFormValues, id: string, firestoreId?: string): MockAccount {
+function buildRegisterUser(values: RegisterFormValues, uid: string, firestoreId?: string): MockAccount {
   const normalizedEmail = values.email.trim().toLowerCase();
-  const firstName = values.firstName.trim();
-  const lastName = values.lastName.trim();
+  const names = values.names.trim();
+  const lastNames = getFormLastNames(values);
 
   return {
-    id,
-    firstName,
-    lastName,
+    uid,
+    id: uid,
+    names,
+    lastNames,
+    lastnames: lastNames,
+    lastName: lastNames,
     username: normalizeUsername(values.username),
     email: normalizedEmail,
-    avatarUrl: buildAvatarUrl(firstName, lastName, normalizedEmail, values.avatarUrl),
+    avatar: buildAvatarUrl(names, lastNames, normalizedEmail, values.avatar),
     firestoreId,
     provider: "password",
     createdAt: new Date().toISOString(),
     password: values.password,
+  };
+}
+
+function buildRegisterRequest(values: RegisterFormValues): RegisterRequest {
+  return {
+    names: values.names.trim(),
+    lastNames: getFormLastNames(values),
+    username: normalizeUsername(values.username),
+    avatar: buildAvatarUrl(values.names, getFormLastNames(values), values.email, values.avatar),
+    email: values.email.trim().toLowerCase(),
+    password: values.password,
+  };
+}
+
+function getFormLastNames(values: { lastnames?: string; lastName?: string }) {
+  return values.lastName?.trim() || values.lastnames?.trim() || "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isBackendUser(value: unknown): value is User {
+  return isRecord(value)
+    && typeof value.uid === "string"
+    && typeof value.names === "string"
+    && typeof value.lastNames === "string"
+    && typeof value.username === "string"
+    && typeof value.email === "string"
+    && typeof value.avatar === "string"
+    && typeof value.provider === "string"
+    && typeof value.createdAt === "string";
+}
+
+function extractBackendUser(body: Record<string, unknown>) {
+  const data = body.data;
+  const nested = body.user ?? (isRecord(data) ? data.user ?? data : undefined) ?? body.result;
+  return isBackendUser(nested) ? nested : null;
+}
+
+function backendUserToAuthUser(user: User, firestoreId?: string): AuthUser {
+  return {
+    uid: user.uid,
+    id: user.uid,
+    names: user.names,
+    lastNames: user.lastNames,
+    lastName: user.lastNames,
+    username: user.username,
+    email: user.email.trim().toLowerCase(),
+    avatar: user.avatar,
+    provider: user.provider,
+    createdAt: user.createdAt,
+    firestoreId: firestoreId ?? user.uid,
+  };
+}
+
+function authUserToMockAccount(user: AuthUser, password = ""): MockAccount {
+  return {
+    ...user,
+    password,
   };
 }
 
@@ -193,24 +269,6 @@ export function isSessionValid(session: AuthSession | null) {
   return !isJwtExpired(session.accessToken);
 }
 
-function toSession(account: MockAccount): AuthSession {
-  return {
-    accessToken: createToken("access"),
-    refreshToken: createToken("refresh"),
-    user: {
-      id: account.id,
-      firstName: account.firstName,
-      lastName: account.lastName,
-      username: account.username,
-      email: account.email,
-      firestoreId: account.firestoreId,
-      avatarUrl: account.avatarUrl,
-      provider: account.provider,
-      createdAt: account.createdAt,
-    },
-  };
-}
-
 function persistSession(session: AuthSession) {
   writeJson(AUTH_SESSION_KEY, session);
 }
@@ -233,13 +291,6 @@ function persistPendingProfile(profile: GoogleAuthProfile | null) {
   localStorage.removeItem(GOOGLE_PENDING_KEY);
 }
 
-function findAccountByUsername(username: string, excludedId?: string) {
-  const normalized = normalizeUsername(username);
-  return loadAccounts().find(
-    (account) => normalizeUsername(account.username) === normalized && account.id !== excludedId,
-  );
-}
-
 function findAccountByEmail(email: string, excludedId?: string) {
   const normalizedEmail = email.trim().toLowerCase();
   return loadAccounts().find(
@@ -253,11 +304,52 @@ function getApiBaseUrl() {
     throw new AuthError("missing_api_url", "Falta configurar VITE_API_URL para conectar con el backend.");
   }
 
-  return baseUrl.replace(/\/$/, "");
+  return baseUrl.trim().replace(/\/$/, "");
+}
+
+const AUTH_ROUTE_CANDIDATES = {
+  // Prefer the canonical routes implemented by the backend first.
+  googleAuth: ["/api/auth/google"],
+  completeGoogleProfile: ["/api/auth/google/complete"],
+  updateProfile: ["/api/auth/me", "/api/auth/profile", "/api/auth/update-profile"],
+} as const;
+
+async function fetchJsonFromCandidates(pathCandidates: readonly string[], init: RequestInit) {
+  const baseUrl = getApiBaseUrl();
+  let lastResponse: Response | null = null;
+
+  for (const path of pathCandidates) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, init);
+      lastResponse = response;
+
+      if (response.status !== 404) {
+        return response;
+      }
+    } catch (err) {
+      // Network error or CORS; skip to next candidate instead of throwing
+      // so other candidates can be tried.
+      // Keep going — lastResponse remains the latest successful Response if any.
+      // eslint-disable-next-line no-console
+      console.warn(`fetchJsonFromCandidates: request to ${baseUrl}${path} failed:`, err);
+      continue;
+    }
+  }
+
+  return lastResponse;
+}
+
+async function getCurrentFirebaseIdToken() {
+  const currentUser = getFirebaseAuth().currentUser;
+  if (!currentUser) {
+    throw new AuthError("unauthorized", "No hay una sesión activa en Firebase.");
+  }
+
+  return currentUser.getIdToken();
 }
 
 function getUserFirestoreId(user: AuthUser) {
-  return user.firestoreId || user.id;
+  return user.firestoreId || user.uid;
 }
 
 function getUserDocumentRef(user: AuthUser) {
@@ -266,29 +358,19 @@ function getUserDocumentRef(user: AuthUser) {
 
 async function persistUserToFirestore(user: AuthUser) {
   const payload = {
+    uid: user.uid,
     id: user.id,
-    firstName: user.firstName,
+    names: user.names,
+    lastNames: user.lastNames,
+    lastnames: user.lastNames,
     lastName: user.lastName,
     username: user.username,
     email: user.email,
-    avatarUrl: user.avatarUrl ?? null,
+    avatar: user.avatar ?? null,
     provider: user.provider,
     firestoreId: user.firestoreId ?? null,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt ?? new Date().toISOString(),
-  };
-
-  await setDoc(getUserDocumentRef(user), payload, { merge: true });
-}
-
-async function syncUserProfileToFirestore(user: AuthUser, profile: ProfileFormValues) {
-  const payload = {
-    firstName: profile.firstName,
-    lastName: profile.lastName,
-    username: profile.username,
-    email: profile.email,
-    avatarUrl: profile.avatarUrl,
-    updatedAt: new Date().toISOString(),
   };
 
   await setDoc(getUserDocumentRef(user), payload, { merge: true });
@@ -314,7 +396,7 @@ export async function checkEmailAvailability(email: string, excludedUserId?: str
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  const taken = findAccountByEmail(normalizedEmail, excludedUserId) || (await emailExistsInFirestore(normalizedEmail, excludedUserId));
+  const taken = await emailExistsInFirestore(normalizedEmail, excludedUserId);
   return taken
     ? { available: false, message: "Ese correo ya existe. Prueba con otro." }
     : { available: true, message: "Correo disponible." };
@@ -334,7 +416,7 @@ function buildGoogleProfile(email: string, displayName: string, photoURL: string
   return {
     email,
     displayName,
-    avatarUrl: photoURL || "",
+    avatar: photoURL || "",
     firestoreId,
     provider: "google",
   };
@@ -368,7 +450,7 @@ export async function checkUsernameAvailability(username: string, excludedUserId
     return { available: false, message: "El username debe tener al menos 3 caracteres." };
   }
 
-  const taken = findAccountByUsername(username, excludedUserId);
+  const taken = await usernameExistsInFirestore(username, excludedUserId);
   return taken
     ? { available: false, message: "Ese username ya existe. Prueba con otro." }
     : { available: true, message: "Username disponible." };
@@ -378,15 +460,17 @@ export async function signInWithEmail(values: LoginFormValues) {
   requireNonEmpty(values.email, "Ingresa tu correo electrónico.");
   requireNonEmpty(values.password, "Ingresa tu contraseña.");
 
+  const request: LoginRequest = {
+    email: values.email.trim().toLowerCase(),
+    password: values.password,
+  };
+
   const response = await fetch(`${getApiBaseUrl()}/api/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      email: values.email.trim().toLowerCase(),
-      password: values.password,
-    }),
+    body: JSON.stringify(request),
   });
 
   const body = await readResponseBody(response);
@@ -409,19 +493,43 @@ export async function signInWithEmail(values: LoginFormValues) {
     throw new AuthError("login_failed", "El backend no devolvió un access token válido.");
   }
 
+  const firebaseAuth = getFirebaseAuth();
+  await signInWithCustomToken(firebaseAuth, accessToken);
+  const firebaseIdToken = await getCurrentFirebaseIdToken();
+
+  const backendUser = extractBackendUser(body);
+  if (backendUser) {
+    const authUser = backendUserToAuthUser(backendUser);
+    const account = authUserToMockAccount(authUser, findAccountByEmail(authUser.email)?.password ?? values.password);
+    saveAccounts([account, ...loadAccounts().filter((existing) => existing.id !== account.id)]);
+
+    const session = {
+      accessToken: firebaseIdToken,
+      refreshToken: createToken("refresh"),
+      user: authUser,
+    } satisfies AuthSession;
+
+    persistSession(session);
+    persistPendingProfile(null);
+    return session;
+  }
+
   const existingAccount = findAccountByEmail(values.email);
   if (existingAccount) {
     const session = {
-      accessToken,
+      accessToken: firebaseIdToken,
       refreshToken: createToken("refresh"),
       user: {
+        uid: existingAccount.uid,
         id: existingAccount.id,
-        firstName: existingAccount.firstName,
+        names: existingAccount.names,
+        lastNames: existingAccount.lastNames,
+        lastnames: existingAccount.lastNames,
         lastName: existingAccount.lastName,
         username: existingAccount.username,
         email: existingAccount.email,
         firestoreId: existingAccount.firestoreId,
-        avatarUrl: existingAccount.avatarUrl,
+        avatar: existingAccount.avatar,
         provider: existingAccount.provider,
         createdAt: existingAccount.createdAt,
         updatedAt: existingAccount.updatedAt,
@@ -434,7 +542,7 @@ export async function signInWithEmail(values: LoginFormValues) {
   }
 
   const session = {
-    accessToken,
+    accessToken: firebaseIdToken,
     refreshToken: createToken("refresh"),
     user: buildUserFromEmail(values.email),
   } satisfies AuthSession;
@@ -445,8 +553,8 @@ export async function signInWithEmail(values: LoginFormValues) {
 }
 
 export async function registerWithEmail(values: RegisterFormValues) {
-  requireNonEmpty(values.firstName, "Ingresa tus nombres.");
-  requireNonEmpty(values.lastName, "Ingresa tus apellidos.");
+  requireNonEmpty(values.names, "Ingresa tus nombres.");
+  requireNonEmpty(getFormLastNames(values), "Ingresa tus apellidos.");
   requireNonEmpty(values.username, "El username es obligatorio.");
   requireNonEmpty(values.email, "Ingresa tu correo electrónico.");
   requireNonEmpty(values.password, "La contraseña es obligatoria.");
@@ -463,29 +571,14 @@ export async function registerWithEmail(values: RegisterFormValues) {
 
   const normalizedEmail = values.email.trim().toLowerCase();
   const normalizedUsername = normalizeUsername(values.username);
-  const displayName = `${values.firstName.trim()} ${values.lastName.trim()}`.trim();
+  const registerRequest = buildRegisterRequest(values);
 
-  const firebaseAuth = getFirebaseAuth();
-  const firebaseResult = await createUserWithEmailAndPassword(firebaseAuth, normalizedEmail, values.password);
-  await firebaseUpdateProfile(firebaseResult.user, {
-    displayName,
-    photoURL: buildAvatarUrl(values.firstName, values.lastName, normalizedEmail, values.avatarUrl),
-  });
-
-  const response = await fetch(`${getApiBaseUrl()}/api/users/register`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      firstName: values.firstName.trim(),
-      lastName: values.lastName.trim(),
-      name: displayName,
-      username: normalizedUsername,
-      avatarUrl: buildAvatarUrl(values.firstName, values.lastName, normalizedEmail, values.avatarUrl),
-      email: normalizedEmail,
-      password: values.password,
-    }),
+    body: JSON.stringify(registerRequest),
   });
 
   const body = await readResponseBody(response);
@@ -508,27 +601,37 @@ export async function registerWithEmail(values: RegisterFormValues) {
     throw new AuthError("register_failed", "El backend no devolvió un access token válido.");
   }
 
+  await signInWithCustomToken(getFirebaseAuth(), accessToken);
+  const firebaseIdToken = await getCurrentFirebaseIdToken();
+
+  const backendUser = extractBackendUser(body);
+  const authUser = backendUser
+    ? backendUserToAuthUser(backendUser)
+    : {
+        uid: normalizedEmail,
+        id: normalizedEmail,
+        names: values.names.trim(),
+        lastNames: getFormLastNames(values),
+        lastnames: getFormLastNames(values),
+        lastName: getFormLastNames(values),
+        username: normalizedUsername,
+        email: normalizedEmail,
+        avatar: buildAvatarUrl(values.names, getFormLastNames(values), normalizedEmail, values.avatar),
+        provider: "password" as const,
+        createdAt: new Date().toISOString(),
+      } satisfies AuthUser;
+
   const session = {
-    accessToken,
+    accessToken: firebaseIdToken,
     refreshToken: createToken("refresh"),
-    user: {
-      id: firebaseResult.user.uid,
-      firstName: values.firstName.trim(),
-      lastName: values.lastName.trim(),
-      username: normalizedUsername,
-      email: normalizedEmail,
-      firestoreId: firebaseResult.user.uid,
-      avatarUrl: buildAvatarUrl(values.firstName, values.lastName, normalizedEmail, values.avatarUrl),
-      provider: "password",
-      createdAt: new Date().toISOString(),
-    },
+    user: authUser,
   } satisfies AuthSession;
 
-  const account = buildRegisterUser(values, firebaseResult.user.uid, firebaseResult.user.uid);
+  const account = buildRegisterUser(values, authUser.uid, authUser.firestoreId || authUser.uid);
   saveAccounts([account, ...loadAccounts().filter((existing) => existing.id !== account.id)]);
   persistSession(session);
   persistPendingProfile(null);
-  await persistUserToFirestore(session.user);
+  await persistUserToFirestore(session.user).catch(() => undefined);
   return session;
 }
 
@@ -544,32 +647,65 @@ export async function startGoogleSignIn() {
 
     const profile = buildGoogleProfile(
       email,
-      firebaseUser.displayName?.trim() || splitDisplayName(email).firstName,
+      firebaseUser.displayName?.trim() || splitDisplayName(email).names,
       firebaseUser.photoURL,
       firebaseUser.uid,
     );
 
-    const existingAccount = findAccountByEmail(email);
-    if (existingAccount) {
-      const { firstName, lastName } = splitDisplayName(profile.displayName);
-      const updatedAccount: MockAccount = {
-        ...existingAccount,
-        firstName,
-        lastName,
-        avatarUrl: profile.avatarUrl,
-        provider: "google",
-        firestoreId: profile.firestoreId,
-      };
+    const idToken = await firebaseUser.getIdToken();
+    const response = await fetchJsonFromCandidates(AUTH_ROUTE_CANDIDATES.googleAuth, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ idToken }),
+    });
 
-      saveAccounts([updatedAccount, ...loadAccounts().filter((account) => account.id !== updatedAccount.id)]);
-      const session = toSession(updatedAccount);
-      persistSession(session);
-      persistPendingProfile(null);
-      return { requiresUsername: false as const, session };
+    const body = response ? await readResponseBody(response) : {};
+    if (!response || !response.ok) {
+      const message = typeof body.message === "string" ? body.message : "No pudimos iniciar sesión con Google.";
+      throw new AuthError(response?.status === 401 ? "invalid_token" : "google_login_failed", message);
     }
 
-    persistPendingProfile(profile);
-    return { requiresUsername: true as const, profile };
+    const requiresUsername = Boolean((body as { needsUsername?: boolean; requiresUsername?: boolean }).needsUsername ?? (body as { needsUsername?: boolean; requiresUsername?: boolean }).requiresUsername);
+    if (requiresUsername) {
+      const uid = typeof body.uid === "string" ? body.uid : firebaseUser.uid;
+      const pendingProfile = buildGoogleProfile(
+        typeof body.email === "string" && body.email ? body.email : email,
+        firebaseUser.displayName?.trim() || splitDisplayName(email).names,
+        firebaseUser.photoURL,
+        uid,
+      );
+      persistPendingProfile(pendingProfile);
+      return { requiresUsername: true as const, profile: pendingProfile };
+    }
+
+    const backendUser = extractBackendUser(body);
+    const authUser = backendUser ? backendUserToAuthUser(backendUser, firebaseUser.uid) : {
+      uid: firebaseUser.uid,
+      id: firebaseUser.uid,
+      names: firebaseUser.displayName?.trim() ? splitDisplayName(firebaseUser.displayName.trim()).names : splitDisplayName(email).names,
+      lastNames: firebaseUser.displayName?.trim() ? splitDisplayName(firebaseUser.displayName.trim()).lastNames : splitDisplayName(email).lastNames,
+      lastnames: firebaseUser.displayName?.trim() ? splitDisplayName(firebaseUser.displayName.trim()).lastNames : splitDisplayName(email).lastNames,
+      lastName: firebaseUser.displayName?.trim() ? splitDisplayName(firebaseUser.displayName.trim()).lastNames : splitDisplayName(email).lastNames,
+      username: normalizeUsername(email.split("@")[0] || "usuario"),
+      email,
+      firestoreId: firebaseUser.uid,
+      avatar: firebaseUser.photoURL || buildAvatarUrl(profile.displayName, "", email, profile.avatar),
+      provider: "google" as const,
+      createdAt: new Date().toISOString(),
+    } satisfies AuthUser;
+
+    const session = {
+      accessToken: idToken,
+      refreshToken: createToken("refresh"),
+      user: authUser,
+    } satisfies AuthSession;
+
+    saveAccounts([authUserToMockAccount(authUser), ...loadAccounts().filter((account) => account.id !== authUser.id)]);
+    persistSession(session);
+    persistPendingProfile(null);
+    return { requiresUsername: false as const, session };
   } catch (error) {
     if (error instanceof AuthError) {
       throw error;
@@ -591,54 +727,55 @@ export async function completeGoogleUsername(username: string) {
     throw new AuthError("username_taken", available.message ?? "Ese username ya existe.");
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/users/register`, {
+  const idToken = await getCurrentFirebaseIdToken();
+  const response = await fetchJsonFromCandidates(AUTH_ROUTE_CANDIDATES.completeGoogleProfile, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
     },
-    body: JSON.stringify({
-      name: pendingProfile.displayName,
-      email: pendingProfile.email,
-      username: normalizeUsername(username),
-      firestoreid: pendingProfile.firestoreId,
-    }),
+    body: JSON.stringify({ username: normalizeUsername(username) }),
   });
 
-  if (!response.ok && response.status !== 201) {
-    const body = await readResponseBody(response);
-    const message = typeof body.message === "string" ? body.message : "No pudimos crear tu usuario con Google.";
-    const code = response.status === 409 ? "username_taken" : "google_register_failed";
-    throw new AuthError(code, message);
+  const body = response ? await readResponseBody(response) : {};
+  if (!response || !response.ok) {
+    const message = typeof body.message === "string" ? body.message : "No pudimos completar el perfil de Google.";
+    throw new AuthError(response?.status === 409 ? "username_taken" : "register_failed", message);
   }
 
-  const body = await readResponseBody(response);
-  const { firstName, lastName } = splitDisplayName(pendingProfile.displayName);
-
-  const account: MockAccount = {
-    id: (body.id as string | undefined) ?? pendingProfile.firestoreId,
-    firstName,
-    lastName,
+  const backendUser = extractBackendUser(body);
+  const { names, lastNames } = splitDisplayName(pendingProfile.displayName);
+  const authUser = backendUser ? backendUserToAuthUser(backendUser, pendingProfile.firestoreId) : {
+    uid: pendingProfile.firestoreId,
+    id: pendingProfile.firestoreId,
+    names,
+    lastNames,
+    lastnames: lastNames,
+    lastName: lastNames,
     username: normalizeUsername(username),
     email: pendingProfile.email.toLowerCase(),
-    avatarUrl: pendingProfile.avatarUrl,
+    avatar: pendingProfile.avatar,
     firestoreId: pendingProfile.firestoreId,
-    provider: "google",
+    provider: "google" as const,
     createdAt: new Date().toISOString(),
-    password: "",
-  };
+  } satisfies AuthUser;
 
-  const session = toSession(account);
-  saveAccounts([account, ...loadAccounts().filter((existing) => existing.id !== account.id)]);
+  const session = {
+    accessToken: idToken,
+    refreshToken: createToken("refresh"),
+    user: authUser,
+  } satisfies AuthSession;
+
+  saveAccounts([authUserToMockAccount(authUser), ...loadAccounts().filter((existing) => existing.id !== authUser.id)]);
   persistSession(session);
   persistPendingProfile(null);
-
-  await persistUserToFirestore(session.user);
+  await persistUserToFirestore(session.user).catch(() => undefined);
   return session;
 }
 
 export async function updateProfile(values: ProfileFormValues) {
-  requireNonEmpty(values.firstName, "Ingresa tus nombres.");
-  requireNonEmpty(values.lastName, "Ingresa tus apellidos.");
+  requireNonEmpty(values.names, "Ingresa tus nombres.");
+  requireNonEmpty(getFormLastNames(values), "Ingresa tus apellidos.");
   requireNonEmpty(values.username, "El username es obligatorio.");
   requireNonEmpty(values.email, "Ingresa tu correo electrónico.");
 
@@ -651,7 +788,6 @@ export async function updateProfile(values: ProfileFormValues) {
   const normalizedUsername = normalizeUsername(values.username);
   const normalizedEmail = values.email.trim().toLowerCase();
   const currentUsername = normalizeUsername(currentUser.username);
-  const currentEmail = currentUser.email.trim().toLowerCase();
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     throw new AuthError("validation_error", "Ingresa un correo electrónico válido.");
@@ -659,55 +795,60 @@ export async function updateProfile(values: ProfileFormValues) {
 
   const accounts = loadAccounts();
   const usernameChanged = normalizedUsername !== currentUsername;
-  const emailChanged = normalizedEmail !== currentEmail;
-
   if (usernameChanged) {
-    const usernameTaken = accounts.find((account) => normalizeUsername(account.username) === normalizedUsername && account.id !== currentUser.id)
-      || (await usernameExistsInFirestore(normalizedUsername, currentUser.firestoreId || currentUser.id));
+    const usernameTaken = await usernameExistsInFirestore(normalizedUsername, currentUser.firestoreId || currentUser.id);
     if (usernameTaken) {
       throw new AuthError("username_taken", "Ese username ya existe. Prueba con otro.");
     }
   }
 
-  if (emailChanged) {
-    const emailTaken = accounts.find((account) => account.email.toLowerCase() === normalizedEmail && account.id !== currentUser.id)
-      || (await emailExistsInFirestore(normalizedEmail, currentUser.firestoreId || currentUser.id));
-    if (emailTaken) {
-      throw new AuthError("email_taken", "Ese correo ya existe. Prueba con otro.");
-    }
-  }
-
   const updatedUser: AuthUser = {
     ...currentUser,
-    firstName: values.firstName.trim(),
-    lastName: values.lastName.trim(),
+    names: values.names.trim(),
+    lastNames: getFormLastNames(values),
+    lastnames: getFormLastNames(values),
+    lastName: getFormLastNames(values),
     username: normalizedUsername,
     email: normalizedEmail,
-    avatarUrl: values.avatarUrl.trim() || currentUser.avatarUrl,
+    avatar: values.avatar.trim() || currentUser.avatar,
     updatedAt: new Date().toISOString(),
   };
 
-  const updatedAccount: MockAccount = {
-    ...(accounts.find((account) => account.id === currentUser.id) ?? {
-      id: currentUser.id,
-      firstName: currentUser.firstName,
-      lastName: currentUser.lastName,
-      username: currentUser.username,
-      email: currentUser.email,
-      avatarUrl: currentUser.avatarUrl,
-      provider: currentUser.provider,
-      createdAt: currentUser.createdAt,
-      firestoreId: currentUser.firestoreId,
-      password: "",
+  const idToken = session.accessToken || (await getCurrentFirebaseIdToken());
+  const response = await fetchJsonFromCandidates(AUTH_ROUTE_CANDIDATES.updateProfile, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({
+      names: values.names.trim(),
+      lastNames: getFormLastNames(values),
+      username: normalizedUsername,
+      avatar: values.avatar.trim(),
     }),
-    ...updatedUser,
+  });
+
+  const body = response ? await readResponseBody(response) : {};
+  if (!response || !response.ok) {
+    const message = typeof body.message === "string" ? body.message : "No pudimos actualizar tu perfil.";
+    if (response?.status === 409) {
+      throw new AuthError("username_taken", message);
+    }
+    throw new AuthError("profile_update_failed", message);
+  }
+
+  const backendUser = extractBackendUser(body);
+  const persistedUser = backendUser ? backendUserToAuthUser(backendUser, currentUser.firestoreId || currentUser.id) : updatedUser;
+  const updatedAccount: MockAccount = {
+    ...(accounts.find((account) => account.id === currentUser.id) ?? authUserToMockAccount(currentUser)),
+    ...persistedUser,
     password: accounts.find((account) => account.id === currentUser.id)?.password ?? "",
   };
 
   saveAccounts([updatedAccount, ...accounts.filter((account) => account.id !== currentUser.id)]);
-  updateSessionUser(updatedUser);
-  await syncUserProfileToFirestore(updatedUser, values);
-  return updatedUser;
+  updateSessionUser(persistedUser);
+  return persistedUser;
 }
 
 export function signOut() {

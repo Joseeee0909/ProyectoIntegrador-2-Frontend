@@ -3,11 +3,37 @@ export interface LoginFormValues {
   password: string;
 }
 
-export interface RegisterFormValues {
-  firstName: string;
-  lastName: string;
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  names: string;
+  lastNames: string;
   username: string;
-  avatarUrl: string;
+  avatar: string;
+  email: string;
+  password: string;
+}
+
+export interface User {
+  uid: string;
+  names: string;
+  lastNames: string;
+  username: string;
+  email: string;
+  avatar: string;
+  provider: "password" | "google";
+  createdAt: string;
+}
+
+export interface RegisterFormValues {
+  names: string;
+  lastnames: string;
+  lastName?: string;
+  username: string;
+  avatar: string;
   email: string;
   password: string;
 }
@@ -15,30 +41,34 @@ export interface RegisterFormValues {
 export interface GoogleAuthProfile {
   email: string;
   displayName: string;
-  avatarUrl: string;
+  avatar: string;
   firestoreId: string;
   provider: "google";
 }
 
 export interface AuthUser {
+  uid: string;
   id: string;
-  firstName: string;
-  lastName: string;
+  names: string;
+  lastNames: string;
+  lastnames?: string;
+  lastName?: string;
   username: string;
   email: string;
   firestoreId?: string;
-  avatarUrl?: string;
+  avatar?: string;
   provider: "password" | "google";
   createdAt: string;
   updatedAt?: string;
 }
 
 export interface ProfileFormValues {
-  firstName: string;
-  lastName: string;
+  names: string;
+  lastnames: string;
+  lastName?: string;
   username: string;
   email: string;
-  avatarUrl: string;
+  avatar: string;
 }
 
 export interface AuthSession {

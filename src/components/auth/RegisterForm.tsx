@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AuthError, checkUsernameAvailability, registerWithEmail } from "../../auth/mockAuth";
+import { AuthError, checkUsernameAvailability, registerWithEmail } from "../../auth/mockAuth.ts";
 import type { RegisterFormValues } from "../../auth/types";
 
 interface RegisterFormProps {
@@ -13,10 +13,10 @@ type AvailabilityState = "idle" | "checking" | "available" | "taken" | "error" |
 
 export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const [values, setValues] = useState<RegisterFormValues>({
-    firstName: "",
-    lastName: "",
+    names: "",
+    lastnames: "",
     username: "",
-    avatarUrl: "",
+    avatar: "",
     email: "",
     password: "",
   });
@@ -69,15 +69,15 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
   const validate = () => {
     const nextErrors: Partial<Record<keyof RegisterFormValues, string>> = {};
-    if (!values.firstName.trim()) nextErrors.firstName = "Ingresa tus nombres.";
-    if (!values.lastName.trim()) nextErrors.lastName = "Ingresa tus apellidos.";
+    if (!values.names.trim()) nextErrors.names = "Ingresa tus nombres.";
+    if (!values.lastnames.trim()) nextErrors.lastnames = "Ingresa tus apellidos.";
     if (!values.username.trim()) nextErrors.username = "El username es obligatorio.";
     else if (values.username.trim().length < 3) nextErrors.username = "El username debe tener al menos 3 caracteres.";
     else if (usernameState === "taken") nextErrors.username = usernameMessage;
     if (!values.email.trim()) nextErrors.email = "El correo es obligatorio.";
     else if (!EMAIL_PATTERN.test(values.email.trim())) nextErrors.email = "Ingresa un correo válido.";
     if (!values.password.trim()) nextErrors.password = "La contraseña es obligatoria.";
-    if (values.avatarUrl.trim() && !URL_PATTERN.test(values.avatarUrl.trim())) nextErrors.avatarUrl = "Ingresa una URL válida o deja este campo vacío.";
+    if (values.avatar.trim() && !URL_PATTERN.test(values.avatar.trim())) nextErrors.avatar = "Ingresa una URL válida o deja este campo vacío.";
     setFieldErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -92,17 +92,17 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     setLoading(true);
     try {
       await registerWithEmail({
-        firstName: values.firstName.trim(),
-        lastName: values.lastName.trim(),
+        names: values.names.trim(),
+        lastnames: values.lastnames.trim(),
         username: values.username.trim(),
-        avatarUrl: values.avatarUrl.trim(),
+        avatar: values.avatar.trim(),
         email: values.email.trim().toLowerCase(),
         password: values.password,
       });
       setSuccess("Registro completado.");
       onSuccess();
-    } catch (authError) {
-      setError(authError instanceof AuthError ? authError.message : "No pudimos completar el registro. Intenta otra vez.");
+    } catch (error: unknown) {
+      setError(error instanceof AuthError ? error.message : "No pudimos completar el registro. Intenta otra vez.");
     } finally {
       setLoading(false);
     }
@@ -117,17 +117,17 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
             id="register-first-name"
             className="h-12 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
             type="text"
-            value={values.firstName}
+            value={values.names}
             autoComplete="given-name"
-            aria-invalid={Boolean(fieldErrors.firstName)}
+            aria-invalid={Boolean(fieldErrors.names)}
             onChange={(event) => {
-              setValues((current) => ({ ...current, firstName: event.target.value }));
-              if (fieldErrors.firstName) setFieldErrors((current) => ({ ...current, firstName: undefined }));
+              setValues((current) => ({ ...current, names: event.target.value }));
+              if (fieldErrors.names) setFieldErrors((current) => ({ ...current, names: undefined }));
               if (error) setError("");
             }}
             placeholder="Ana"
           />
-          {fieldErrors.firstName && <p className="text-sm text-rose-300">{fieldErrors.firstName}</p>}
+          {fieldErrors.names && <p className="text-sm text-rose-300">{fieldErrors.names}</p>}
         </div>
 
         <div className="grid min-w-0 gap-2">
@@ -136,17 +136,17 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
             id="register-last-name"
             className="h-12 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
             type="text"
-            value={values.lastName}
+            value={values.lastnames}
             autoComplete="family-name"
-            aria-invalid={Boolean(fieldErrors.lastName)}
+            aria-invalid={Boolean(fieldErrors.lastnames)}
             onChange={(event) => {
-              setValues((current) => ({ ...current, lastName: event.target.value }));
-              if (fieldErrors.lastName) setFieldErrors((current) => ({ ...current, lastName: undefined }));
+              setValues((current) => ({ ...current, lastnames: event.target.value }));
+              if (fieldErrors.lastnames) setFieldErrors((current) => ({ ...current, lastnames: undefined }));
               if (error) setError("");
             }}
             placeholder="Soto"
           />
-          {fieldErrors.lastName && <p className="text-sm text-rose-300">{fieldErrors.lastName}</p>}
+          {fieldErrors.lastnames && <p className="text-sm text-rose-300">{fieldErrors.lastnames}</p>}
         </div>
       </div>
 
@@ -177,18 +177,18 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
           id="register-avatar"
           className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
           type="url"
-          value={values.avatarUrl}
+          value={values.avatar}
           autoComplete="photo"
-          aria-invalid={Boolean(fieldErrors.avatarUrl)}
+          aria-invalid={Boolean(fieldErrors.avatar)}
           onChange={(event) => {
-            setValues((current) => ({ ...current, avatarUrl: event.target.value }));
-            if (fieldErrors.avatarUrl) setFieldErrors((current) => ({ ...current, avatarUrl: undefined }));
+            setValues((current) => ({ ...current, avatar: event.target.value }));
+            if (fieldErrors.avatar) setFieldErrors((current) => ({ ...current, avatar: undefined }));
             if (error) setError("");
           }}
           placeholder="https://..."
         />
-        {fieldErrors.avatarUrl ? (
-          <p className="text-sm text-rose-300">{fieldErrors.avatarUrl}</p>
+        {fieldErrors.avatar ? (
+          <p className="text-sm text-rose-300">{fieldErrors.avatar}</p>
         ) : (
           <p className="text-sm text-slate-400">Puedes dejarlo vacío y se usará un avatar con tus iniciales.</p>
         )}

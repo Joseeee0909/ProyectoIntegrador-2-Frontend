@@ -5,9 +5,7 @@ export type BackendResult = {
   data?: unknown;
 };
 
-
-
-const API_URL = import.meta.env.VITE_API_URL    
+const API_URL = import.meta.env.VITE_API_URL?.trim();
 
 export async function ConnectToBackend( timeoutMs = 5000 ): Promise<BackendResult> { 
     if (!API_URL) return { status: "error" }
