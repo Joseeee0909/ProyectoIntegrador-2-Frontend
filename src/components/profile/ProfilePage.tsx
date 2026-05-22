@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, BadgeCheck, Camera, Mail, Save, Sparkles, UserRound } from "lucide-react";
-import { AuthError, checkEmailAvailability, checkUsernameAvailability, updateProfile } from "../../auth/mockAuth";
+import { AuthError, checkUsernameAvailability, updateProfile } from "../../auth/mockAuth";
 import type { AuthUser, ProfileFormValues } from "../../auth/types";
 
 interface ProfilePageProps {
@@ -27,11 +27,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof ProfileFormValues, string>>>({});
   const [usernameState, setUsernameState] = useState<AvailabilityState>("idle");
   const [usernameMessage, setUsernameMessage] = useState("El username debe ser único.");
-  const [emailState, setEmailState] = useState<AvailabilityState>("idle");
-  const [emailMessage, setEmailMessage] = useState("El correo debe ser único.");
   const [avatarErrored, setAvatarErrored] = useState(false);
-
-  const userId = useMemo(() => user.firestoreId || user.id, [user.firestoreId, user.id]);
 
   useEffect(() => {
     const normalized = values.username.trim();
@@ -58,7 +54,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
     setUsernameMessage("Comprobando disponibilidad...");
 
     const timeout = window.setTimeout(() => {
-      void checkUsernameAvailability(normalized, userId)
+        void checkUsernameAvailability(normalized)
         .then((result) => {
           if (cancelled) return;
           setUsernameState(result.available ? "available" : "taken");
@@ -75,65 +71,18 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [initialUsername, userId, values.username]);
-
-  useEffect(() => {
-    const normalized = values.email.trim();
-    if (normalized.toLowerCase() === initialEmail) {
-      setEmailState("idle");
-      setEmailMessage("Es tu correo actual.");
-      return;
-    }
-
-    if (!normalized) {
-      setEmailState("idle");
-      setEmailMessage("El correo debe ser único.");
-      return;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-      setEmailState("invalid");
-      setEmailMessage("Ingresa un correo válido.");
-      return;
-    }
-
-    let cancelled = false;
-    setEmailState("checking");
-    setEmailMessage("Comprobando disponibilidad...");
-
-    const timeout = window.setTimeout(() => {
-      void checkEmailAvailability(normalized, userId)
-        .then((result) => {
-          if (cancelled) return;
-          setEmailState(result.available ? "available" : "taken");
-          setEmailMessage(result.message ?? (result.available ? "Disponible" : "No disponible"));
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setEmailState("error");
-          setEmailMessage("No pudimos validar el correo ahora.");
-        });
-    }, 350);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-    };
-  }, [initialEmail, userId, values.email]);
+    }, [initialUsername, values.username]);
 
   const validate = () => {
     const nextErrors: Partial<Record<keyof ProfileFormValues, string>> = {};
     if (!values.names.trim()) nextErrors.names = "Ingresa tus nombres.";
     if (!values.lastnames.trim()) nextErrors.lastnames = "Ingresa tus apellidos.";
     if (!values.username.trim()) nextErrors.username = "El username es obligatorio.";
-    if (!values.email.trim()) nextErrors.email = "El correo es obligatorio.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) nextErrors.email = "Ingresa un correo válido.";
     setFieldErrors(nextErrors);
 
     const usernameChanged = values.username.trim().toLowerCase() !== initialUsername;
-    const emailChanged = values.email.trim().toLowerCase() !== initialEmail;
 
-    return Object.keys(nextErrors).length === 0 && (!usernameChanged || usernameState !== "taken") && (!emailChanged || emailState !== "taken");
+    return Object.keys(nextErrors).length === 0 && (!usernameChanged || usernameState !== "taken");
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -145,9 +94,6 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
       if (values.username.trim().toLowerCase() !== initialUsername && usernameState === "taken") {
         setFieldErrors((current) => ({ ...current, username: "Ese username ya existe." }));
       }
-      if (values.email.trim().toLowerCase() !== initialEmail && emailState === "taken") {
-        setFieldErrors((current) => ({ ...current, email: "Ese correo ya existe." }));
-      }
       return;
     }
 
@@ -157,7 +103,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
         names: values.names.trim(),
         lastnames: values.lastnames.trim(),
         username: values.username.trim(),
-        email: values.email.trim().toLowerCase(),
+        email: initialEmail,
         avatar: values.avatar.trim(),
       });
       setSuccess("Perfil actualizado correctamente.");
@@ -166,9 +112,6 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
       const authError = submissionError instanceof AuthError ? submissionError : null;
       if (authError?.code === "username_taken") {
         setFieldErrors((current) => ({ ...current, username: "Ese username ya existe." }));
-        setError(authError.message);
-      } else if (authError?.code === "email_taken") {
-        setFieldErrors((current) => ({ ...current, email: "Ese correo ya existe." }));
         setError(authError.message);
       } else {
         setError(authError?.message ?? "No pudimos actualizar tu perfil. Intenta otra vez.");
@@ -298,26 +241,18 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
 
             <div className="grid gap-2">
               <label className="text-sm font-medium text-slate-100" htmlFor="profile-email">Correo electrónico</label>
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 focus-within:border-cyan-400/50 focus-within:ring-4 focus-within:ring-cyan-400/10">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 opacity-90">
                 <Mail className="h-4 w-4 text-slate-400" />
                 <input
                   id="profile-email"
                   className="h-12 min-w-0 flex-1 bg-transparent text-slate-100 outline-none placeholder:text-slate-500"
                   type="email"
                   value={values.email}
-                  onChange={(event) => {
-                    setValues((current) => ({ ...current, email: event.target.value }));
-                    if (fieldErrors.email) setFieldErrors((current) => ({ ...current, email: undefined }));
-                    if (error) setError("");
-                  }}
-                  placeholder="jmunozgol@gmail.com"
+                  readOnly
+                  tabIndex={-1}
                 />
-                <span className={`h-3 w-3 rounded-full ${emailState === "checking" ? "bg-amber-400" : emailState === "available" ? "bg-emerald-400" : emailState === "taken" ? "bg-rose-400" : "bg-slate-500"}`} aria-hidden="true" />
               </div>
-              <p className={`text-sm ${emailState === "available" ? "text-emerald-300" : emailState === "taken" || emailState === "error" ? "text-rose-300" : "text-slate-400"}`}>
-                {emailMessage}
-              </p>
-              {fieldErrors.email && <p className="text-sm text-rose-300">{fieldErrors.email}</p>}
+              <p className="text-sm text-slate-400">El correo no se puede modificar desde este perfil.</p>
             </div>
 
             <div className="grid gap-2">

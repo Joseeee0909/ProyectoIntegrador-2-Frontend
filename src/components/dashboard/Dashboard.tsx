@@ -12,7 +12,11 @@ interface DashboardProps {
 
 export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpenProfile }: DashboardProps) {
   const [avatarError, setAvatarError] = useState(false);
-  const userInitials = `${user.names} ${user.lastnames}`
+  const displayName = [user.names, user.lastNames || user.lastnames || user.lastName]
+    .filter((part): part is string => Boolean(part && part.trim()))
+    .join(" ")
+    .trim();
+  const userInitials = displayName
     .trim()
     .split(/\s+/)
     .filter(Boolean)
@@ -65,7 +69,7 @@ export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpen
               {hasRenderableAvatar ? (
                 <img
                   src={user.avatar}
-                  alt={`Avatar de ${user.names} ${user.lastnames}`.trim()}
+                  alt={`Avatar de ${displayName || user.username}`}
                   className="h-full w-full object-cover"
                   onError={() => setAvatarError(true)}
                 />
@@ -74,7 +78,7 @@ export function Dashboard({ user, onLogout, flashMessage, onOpenSettings, onOpen
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <strong className="block truncate text-sm text-slate-100">{`${user.names} ${user.lastnames}`.trim() || user.username}</strong>
+              <strong className="block truncate text-sm text-slate-100">{displayName || user.username}</strong>
               <p className="truncate text-sm text-slate-400">{user.email}</p>
             </div>
             <button type="button" className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" onClick={onLogout} title="Cerrar sesión">

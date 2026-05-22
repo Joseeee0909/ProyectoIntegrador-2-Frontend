@@ -1,5 +1,5 @@
-import { signInWithCustomToken, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth";
-import { collection, doc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { signInWithCustomToken, signInWithEmailAndPassword, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 import { getFirebaseAuth, getGoogleProvider, getFirestoreDb } from "./firebase";
 import type { AuthBootstrapState, AuthSession, AuthUser, GoogleAuthProfile, LoginFormValues, LoginRequest, ProfileFormValues, RegisterFormValues, RegisterRequest, User } from "./types";
 
@@ -215,7 +215,7 @@ function extractBackendUser(body: Record<string, unknown>) {
   return isBackendUser(nested) ? nested : null;
 }
 
-function backendUserToAuthUser(user: User, firestoreId?: string): AuthUser {
+function backendUserToAuthUser(user: User | AuthUser, firestoreId?: string): AuthUser {
   return {
     uid: user.uid,
     id: user.uid,
@@ -224,10 +224,10 @@ function backendUserToAuthUser(user: User, firestoreId?: string): AuthUser {
     lastName: user.lastNames,
     username: user.username,
     email: user.email.trim().toLowerCase(),
-    avatar: user.avatar,
+    avatar: user.avatar ?? "",
     provider: user.provider,
     createdAt: user.createdAt,
-    firestoreId: firestoreId ?? user.uid,
+    firestoreId: firestoreId ?? ("firestoreId" in user ? user.firestoreId : undefined) ?? user.uid,
   };
 }
 
@@ -311,8 +311,25 @@ const AUTH_ROUTE_CANDIDATES = {
   // Prefer the canonical routes implemented by the backend first.
   googleAuth: ["/api/auth/google"],
   completeGoogleProfile: ["/api/auth/google/complete"],
-  updateProfile: ["/api/auth/me", "/api/auth/profile", "/api/auth/update-profile"],
+  updateProfile: ["/api/users/me"],
 } as const;
+
+async function fetchAuthenticatedBackendUser(accessToken: string) {
+  const response = await fetch(`${getApiBaseUrl()}/api/users/me`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const body = await readResponseBody(response);
+  const backendUser = extractBackendUser(body);
+  return backendUser ? backendUserToAuthUser(backendUser) : null;
+}
 
 async function fetchJsonFromCandidates(pathCandidates: readonly string[], init: RequestInit) {
   const baseUrl = getApiBaseUrl();
@@ -376,19 +393,7 @@ async function persistUserToFirestore(user: AuthUser) {
   await setDoc(getUserDocumentRef(user), payload, { merge: true });
 }
 
-async function emailExistsInFirestore(email: string, excludedUserId?: string) {
-  const normalizedEmail = email.trim().toLowerCase();
-  const snapshot = await getDocs(query(collection(getFirestoreDb(), "users"), where("email", "==", normalizedEmail)));
-  return snapshot.docs.some((item) => item.id !== excludedUserId && String(item.data().email ?? "").trim().toLowerCase() === normalizedEmail);
-}
-
-async function usernameExistsInFirestore(username: string, excludedUserId?: string) {
-  const normalized = normalizeUsername(username);
-  const snapshot = await getDocs(query(collection(getFirestoreDb(), "users"), where("username", "==", normalized)));
-  return snapshot.docs.some((item) => item.id !== excludedUserId && normalizeUsername(String(item.data().username ?? "")) === normalized);
-}
-
-export async function checkEmailAvailability(email: string, excludedUserId?: string) {
+export async function checkEmailAvailability(email: string) {
   await delay(220);
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -396,10 +401,21 @@ export async function checkEmailAvailability(email: string, excludedUserId?: str
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  const taken = await emailExistsInFirestore(normalizedEmail, excludedUserId);
-  return taken
-    ? { available: false, message: "Ese correo ya existe. Prueba con otro." }
-    : { available: true, message: "Correo disponible." };
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/check-email?email=${encodeURIComponent(normalizedEmail)}`);
+    const body = (await readResponseBody(response)) as { available?: boolean; error?: string; message?: string };
+
+    if (!response.ok) {
+      const message = body.error || body.message || "No pudimos validar el correo.";
+      return { available: false, message };
+    }
+
+    return body.available
+      ? { available: true, message: "Correo disponible." }
+      : { available: false, message: "Ese correo ya existe. Prueba con otro." };
+  } catch {
+    return { available: false, message: "No pudimos validar el correo ahora." };
+  }
 }
 
 async function readResponseBody(response: Response) {
@@ -443,17 +459,30 @@ export function bootstrapAuthState(): AuthBootstrapState {
   return { session: null, pendingGoogleProfile };
 }
 
-export async function checkUsernameAvailability(username: string, excludedUserId?: string) {
+export async function checkUsernameAvailability(username: string) {
   await delay(220);
 
   if (normalizeUsername(username).length < 3) {
     return { available: false, message: "El username debe tener al menos 3 caracteres." };
   }
 
-  const taken = await usernameExistsInFirestore(username, excludedUserId);
-  return taken
-    ? { available: false, message: "Ese username ya existe. Prueba con otro." }
-    : { available: true, message: "Username disponible." };
+  const normalizedUsername = normalizeUsername(username);
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/check-username?username=${encodeURIComponent(normalizedUsername)}`);
+    const body = (await readResponseBody(response)) as { available?: boolean; error?: string; message?: string };
+
+    if (!response.ok) {
+      const message = body.error || body.message || "No pudimos validar el username.";
+      return { available: false, message };
+    }
+
+    return body.available
+      ? { available: true, message: "Username disponible." }
+      : { available: false, message: "Ese username ya existe. Prueba con otro." };
+  } catch {
+    return { available: false, message: "No pudimos validar el username ahora." };
+  }
 }
 
 export async function signInWithEmail(values: LoginFormValues) {
@@ -496,10 +525,11 @@ export async function signInWithEmail(values: LoginFormValues) {
   const firebaseAuth = getFirebaseAuth();
   await signInWithCustomToken(firebaseAuth, accessToken);
   const firebaseIdToken = await getCurrentFirebaseIdToken();
+  const hydratedBackendUser = await fetchAuthenticatedBackendUser(firebaseIdToken).catch(() => null);
 
-  const backendUser = extractBackendUser(body);
+  const backendUser = hydratedBackendUser ?? extractBackendUser(body);
   if (backendUser) {
-    const authUser = backendUserToAuthUser(backendUser);
+    const authUser = backendUserToAuthUser(backendUser as User | AuthUser);
     const account = authUserToMockAccount(authUser, findAccountByEmail(authUser.email)?.password ?? values.password);
     saveAccounts([account, ...loadAccounts().filter((existing) => existing.id !== account.id)]);
 
@@ -596,17 +626,14 @@ export async function registerWithEmail(values: RegisterFormValues) {
     throw new AuthError("register_failed", message);
   }
 
-  const accessToken = extractAccessToken(body);
-  if (!accessToken) {
-    throw new AuthError("register_failed", "El backend no devolvió un access token válido.");
-  }
-
-  await signInWithCustomToken(getFirebaseAuth(), accessToken);
+  const firebaseAuth = getFirebaseAuth();
+  await signInWithEmailAndPassword(firebaseAuth, normalizedEmail, values.password);
   const firebaseIdToken = await getCurrentFirebaseIdToken();
+  const hydratedBackendUser = await fetchAuthenticatedBackendUser(firebaseIdToken).catch(() => null);
 
-  const backendUser = extractBackendUser(body);
+  const backendUser = hydratedBackendUser ?? extractBackendUser(body);
   const authUser = backendUser
-    ? backendUserToAuthUser(backendUser)
+    ? backendUserToAuthUser(backendUser as User | AuthUser)
     : {
         uid: normalizedEmail,
         id: normalizedEmail,
@@ -667,6 +694,8 @@ export async function startGoogleSignIn() {
       throw new AuthError(response?.status === 401 ? "invalid_token" : "google_login_failed", message);
     }
 
+    const hydratedBackendUser = await fetchAuthenticatedBackendUser(idToken).catch(() => null);
+
     const requiresUsername = Boolean((body as { needsUsername?: boolean; requiresUsername?: boolean }).needsUsername ?? (body as { needsUsername?: boolean; requiresUsername?: boolean }).requiresUsername);
     if (requiresUsername) {
       const uid = typeof body.uid === "string" ? body.uid : firebaseUser.uid;
@@ -680,8 +709,8 @@ export async function startGoogleSignIn() {
       return { requiresUsername: true as const, profile: pendingProfile };
     }
 
-    const backendUser = extractBackendUser(body);
-    const authUser = backendUser ? backendUserToAuthUser(backendUser, firebaseUser.uid) : {
+    const backendUser = hydratedBackendUser ?? extractBackendUser(body);
+    const authUser = backendUser ? backendUserToAuthUser(backendUser as User | AuthUser, firebaseUser.uid) : {
       uid: firebaseUser.uid,
       id: firebaseUser.uid,
       names: firebaseUser.displayName?.trim() ? splitDisplayName(firebaseUser.displayName.trim()).names : splitDisplayName(email).names,
@@ -743,9 +772,10 @@ export async function completeGoogleUsername(username: string) {
     throw new AuthError(response?.status === 409 ? "username_taken" : "register_failed", message);
   }
 
-  const backendUser = extractBackendUser(body);
+  const hydratedBackendUser = await fetchAuthenticatedBackendUser(idToken).catch(() => null);
+  const backendUser = hydratedBackendUser ?? extractBackendUser(body);
   const { names, lastNames } = splitDisplayName(pendingProfile.displayName);
-  const authUser = backendUser ? backendUserToAuthUser(backendUser, pendingProfile.firestoreId) : {
+  const authUser = backendUser ? backendUserToAuthUser(backendUser as User | AuthUser, pendingProfile.firestoreId) : {
     uid: pendingProfile.firestoreId,
     id: pendingProfile.firestoreId,
     names,
@@ -796,9 +826,9 @@ export async function updateProfile(values: ProfileFormValues) {
   const accounts = loadAccounts();
   const usernameChanged = normalizedUsername !== currentUsername;
   if (usernameChanged) {
-    const usernameTaken = await usernameExistsInFirestore(normalizedUsername, currentUser.firestoreId || currentUser.id);
-    if (usernameTaken) {
-      throw new AuthError("username_taken", "Ese username ya existe. Prueba con otro.");
+    const usernameAvailability = await checkUsernameAvailability(normalizedUsername);
+    if (!usernameAvailability.available) {
+      throw new AuthError("username_taken", usernameAvailability.message ?? "Ese username ya existe. Prueba con otro.");
     }
   }
 
@@ -816,7 +846,7 @@ export async function updateProfile(values: ProfileFormValues) {
 
   const idToken = session.accessToken || (await getCurrentFirebaseIdToken());
   const response = await fetchJsonFromCandidates(AUTH_ROUTE_CANDIDATES.updateProfile, {
-    method: "PUT",
+    method: "PATCH",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${idToken}`,
@@ -838,8 +868,9 @@ export async function updateProfile(values: ProfileFormValues) {
     throw new AuthError("profile_update_failed", message);
   }
 
-  const backendUser = extractBackendUser(body);
-  const persistedUser = backendUser ? backendUserToAuthUser(backendUser, currentUser.firestoreId || currentUser.id) : updatedUser;
+  const hydratedBackendUser = await fetchAuthenticatedBackendUser(idToken).catch(() => null);
+  const backendUser = hydratedBackendUser ?? extractBackendUser(body);
+  const persistedUser = backendUser ? backendUserToAuthUser(backendUser as User | AuthUser, currentUser.firestoreId || currentUser.id) : updatedUser;
   const updatedAccount: MockAccount = {
     ...(accounts.find((account) => account.id === currentUser.id) ?? authUserToMockAccount(currentUser)),
     ...persistedUser,
