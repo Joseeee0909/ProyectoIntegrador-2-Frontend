@@ -1,73 +1,141 @@
-# React + TypeScript + Vite
+# Proyecto Integrador 2 - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend en React + TypeScript + Vite para el sistema de autenticación y perfil del proyecto integrador. La app consume el backend desplegado en Render y usa Firebase para el flujo de sesión y Google Sign-In.
 
-Currently, two official plugins are available:
+## Funcionalidades
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Registro manual con validación de nombre, username, correo, avatar y contraseña.
+- Inicio de sesión con correo y contraseña.
+- Inicio de sesión con Google y completado de perfil si falta username.
+- Edición de perfil de usuario autenticado.
+- Validación de disponibilidad de username y correo contra el backend.
+- Persistencia de sesión en Firebase y estado local.
 
-## React Compiler
+## Tecnologías
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19
+- TypeScript
+- Vite
+- Firebase Auth y Firestore
+- React Router
+- Tailwind CSS
+- Lucide React
 
-## Expanding the ESLint configuration
+## Requisitos
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Node.js 18 o superior.
+- Una cuenta/proyecto de Firebase configurado.
+- Acceso al backend desplegado o local.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Instalación
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Configuración
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Crea un archivo `.env` en la raíz del proyecto con estas variables:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```env
+VITE_API_URL=https://backend-miniproyecto-2.onrender.com/
+VITE_FIREBASE_AUTH_DOMAIN=backend-miniproyecto-2.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=backend-miniproyecto-2
+VITE_FIREBASE_API_KEY=tu_api_key
+VITE_FIREBASE_APP_ID=tu_app_id
 ```
+
+Si cambias el backend de entorno, actualiza `VITE_API_URL`.
+
+## Scripts
+
+```bash
+npm run dev
+```
+
+Arranca el servidor de desarrollo.
+
+```bash
+npm run build
+```
+
+Compila el proyecto para producción.
+
+```bash
+npm run lint
+```
+
+Ejecuta ESLint sobre el código fuente.
+
+```bash
+npm run preview
+```
+
+Sirve localmente la versión compilada.
+
+## Flujo de autenticación
+
+### Registro manual
+
+1. El formulario valida los campos en el cliente.
+2. El frontend consulta `GET /api/auth/check-email` y `GET /api/auth/check-username`.
+3. Luego envía `POST /api/auth/register` con:
+
+```json
+{
+  "names": "Ana",
+  "lastNames": "Soto",
+  "username": "anastudy",
+  "avatar": "https://...",
+  "email": "ana@example.com",
+  "password": "Password123"
+}
+```
+
+### Login manual
+
+1. Se envía `POST /api/auth/login` con `email` y `password`.
+2. Si el backend responde correctamente, la app guarda la sesión y redirige al dashboard.
+
+### Google Sign-In
+
+1. Firebase abre el popup de Google.
+2. El frontend envía el `idToken` a `POST /api/auth/google`.
+3. Si el backend responde que falta username, la app navega a la pantalla de completado.
+4. Para finalizar, se llama `POST /api/auth/google/complete` con `Authorization: Bearer <firebaseIdToken>` y `{ "username": "..." }`.
+
+
+## Estructura principal
+
+```bash
+src/
+├── auth/
+├── components/
+│   ├── auth/
+│   ├── dashboard/
+│   └── profile/
+├── services/
+├── App.tsx
+├── main.tsx
+└── index.css
+```
+
+## Problemas conocidos
+
+- Los avisos de `Cross-Origin-Opener-Policy` al usar Google pueden aparecer en el navegador; normalmente no bloquean el flujo, pero dependen de la configuración del hosting.
+- Si el backend devuelve `500` en Google, el problema está en el servidor, no en el formulario.
+
+## Desarrollo
+
+Para correr la app en local:
+
+```bash
+npm run dev
+```
+
+Luego abre la URL que muestra Vite, normalmente `http://localhost:5173`.
+
+## Notas
+
+- La app mantiene una capa de estado local para ayudar en el flujo de auth, pero la fuente real de verdad sigue siendo Firebase y el backend.
+- Si cambias rutas o contrato del backend, actualiza `src/auth/mockAuth.ts` para mantenerlo sincronizado.
