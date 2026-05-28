@@ -35,17 +35,7 @@ npm install
 
 ## Configuración
 
-Crea un archivo `.env` en la raíz del proyecto con estas variables:
-
-```env
-VITE_API_URL=https://backend-miniproyecto-2.onrender.com/
-VITE_FIREBASE_AUTH_DOMAIN=backend-miniproyecto-2.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=backend-miniproyecto-2
-VITE_FIREBASE_API_KEY=tu_api_key
-VITE_FIREBASE_APP_ID=tu_app_id
-```
-
-Si cambias el backend de entorno, actualiza `VITE_API_URL`.
+Configura las variables de entorno de Vite en tu entorno local según el backend y Firebase que uses.
 
 ## Scripts
 

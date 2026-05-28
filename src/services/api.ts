@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from "../config/env";
+
 export type backendStatus = "loading" | "Conectado exitosamente" | "error";
 
 export type BackendResult = {
@@ -5,16 +7,14 @@ export type BackendResult = {
   data?: unknown;
 };
 
-const API_URL = import.meta.env.VITE_API_URL?.trim();
-
 export async function ConnectToBackend( timeoutMs = 5000 ): Promise<BackendResult> { 
-    if (!API_URL) return { status: "error" }
+  const apiUrl = getApiBaseUrl();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
    
     try {
-    const res = await fetch(`${API_URL}`, { method: 'GET', signal: controller.signal});
+    const res = await fetch(`${apiUrl}`, { method: 'GET', signal: controller.signal});
 
     const data = await res.text();
 

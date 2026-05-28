@@ -1,17 +1,26 @@
-import { useEffect, useState } from "react";
-import { BookOpen, Clock3, LogOut, Settings, Sparkles } from "lucide-react";
+import { type FormEvent, useEffect, useState } from "react";
+import { ArrowRight, BookOpen, Clock3, Hash, LogOut, Plus, Settings, Sparkles } from "lucide-react";
 import type { AuthUser } from "../../auth/types";
+import type { StudyRoom } from "../../services/rooms";
 
 interface DashboardProps {
   user: AuthUser;
   onLogout: () => void;
   flashMessage?: string;
+  rooms: StudyRoom[];
+  roomsLoading: boolean;
+  roomsError: string;
+  onCreateRoom: (name: string) => Promise<void>;
+  onOpenRoom: (roomId: string) => void;
   onOpenSettings: () => void;
   onOpenProfile: () => void;
 }
 
-export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile }: DashboardProps) {
+export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile, flashMessage, rooms, roomsLoading, roomsError, onCreateRoom, onOpenRoom }: DashboardProps) {
   const [avatarError, setAvatarError] = useState(false);
+  const [roomName, setRoomName] = useState("");
+  const [createError, setCreateError] = useState("");
+  const [creating, setCreating] = useState(false);
   const displayName = [user.names, user.lastNames || user.lastNames || user.lastNames]
     .filter((part): part is string => Boolean(part && part.trim()))
     .join(" ")
@@ -27,6 +36,26 @@ export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile }: Das
   useEffect(() => {
     setAvatarError(false);
   }, [user.avatar, user.id]);
+
+  const handleCreateRoom = async (event: FormEvent) => {
+    event.preventDefault();
+    setCreateError("");
+
+    if (!roomName.trim()) {
+      setCreateError("Ingresa un nombre para la sala.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      await onCreateRoom(roomName.trim());
+      setRoomName("");
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "No pudimos crear la sala.");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const hasRenderableAvatar = Boolean(user.avatar && !avatarError && /^https?:\/\//i.test(user.avatar));
 
@@ -103,26 +132,90 @@ export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile }: Das
             </div>
           </header>
 
-          
-
-          <section className="flex min-h-[420px] flex-col items-center justify-center rounded-[2rem] border border-dashed border-white/10 bg-slate-950/40 px-6 py-10 text-center">
-            <div className="mb-5 grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/5 text-cyan-300">
-              <Sparkles className="h-5 w-5" />
+          {flashMessage && (
+            <div className="rounded-[1.5rem] border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+              {flashMessage}
             </div>
-            <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-300">Estado vacío</div>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-100">No tienes salas</h2>
-            <p className="mt-3 max-w-xl text-base leading-8 text-slate-400">
-              Cuando crees o te unas a una sala, aparecerá aquí. 
-            </p>
+          )}
 
-            <div className="mt-8 w-full max-w-2xl space-y-3" aria-hidden="true">
-              <div className="h-24 animate-pulse rounded-[1.5rem] border border-white/10 bg-gradient-to-r from-white/5 via-white/10 to-white/5" />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="h-16 animate-pulse rounded-[1.25rem] border border-white/10 bg-gradient-to-r from-white/5 via-white/10 to-white/5" />
-                <div className="h-16 animate-pulse rounded-[1.25rem] border border-white/10 bg-gradient-to-r from-white/5 via-white/10 to-white/5" />
+          {roomsError && (
+            <div className="rounded-[1.5rem] border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+              {roomsError}
+            </div>
+          )}
+
+          <section className="grid gap-4 rounded-[1.75rem] border border-white/10 bg-slate-950/40 p-5">
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/5 text-cyan-300">
+                <Plus className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-100">Crear sala</h2>
+                <p className="text-sm text-slate-400">Guarda tu sala y entra directo como anfitrión.</p>
               </div>
             </div>
+
+            <form className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={handleCreateRoom} noValidate>
+              <input
+                className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
+                value={roomName}
+                onChange={(event) => {
+                  setRoomName(event.target.value);
+                  if (createError) setCreateError("");
+                }}
+                placeholder="Nombre de la sala"
+              />
+              <button type="submit" className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-5 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 disabled:cursor-progress disabled:opacity-60" disabled={creating}>
+                <Plus className="h-4 w-4" />
+                {creating ? "Creando..." : "Crear sala"}
+              </button>
+            </form>
+            {createError && <p className="text-sm text-rose-300">{createError}</p>}
           </section>
+
+          {roomsLoading ? (
+            <section className="flex min-h-[340px] flex-col items-center justify-center rounded-[2rem] border border-dashed border-white/10 bg-slate-950/40 px-6 py-10 text-center">
+              <div className="h-14 w-14 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" aria-hidden="true" />
+              <h2 className="mt-5 text-3xl font-semibold tracking-tight text-slate-100">Cargando salas</h2>
+              <p className="mt-3 max-w-xl text-base leading-8 text-slate-400">Consultando el backend para recuperar tus espacios de estudio.</p>
+            </section>
+          ) : rooms.length === 0 ? (
+            <section className="flex min-h-[340px] flex-col items-center justify-center rounded-[2rem] border border-dashed border-white/10 bg-slate-950/40 px-6 py-10 text-center">
+              <div className="mb-5 grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/5 text-cyan-300">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-300">Estado vacío</div>
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-100">No tienes salas</h2>
+              <p className="mt-3 max-w-xl text-base leading-8 text-slate-400">Crea tu primera sala para empezar a organizar sesiones de estudio.</p>
+            </section>
+          ) : (
+            <section className="grid gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-100">Tus salas</h2>
+                  <p className="text-sm text-slate-400">Abre una sala para administrarla o entrar en ella.</p>
+                </div>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.18em] text-slate-300">{rooms.length} activas</span>
+              </div>
+
+              <div className="grid gap-3">
+                {rooms.map((room) => (
+                  <article key={room.id} className="flex flex-col gap-4 rounded-[1.75rem] border border-white/10 bg-slate-950/40 p-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
+                        <Hash className="h-3.5 w-3.5 text-cyan-300" /> {room.id}
+                      </div>
+                      <h3 className="mt-2 truncate text-lg font-semibold text-slate-100">{room.name}</h3>
+                      <p className="mt-1 text-sm text-slate-400">Propietario: {room.ownerUsername}</p>
+                    </div>
+                    <button type="button" className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-slate-100 transition hover:bg-white/10" onClick={() => onOpenRoom(room.id)}>
+                      Abrir <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
         </main>
       </div>
     </div>

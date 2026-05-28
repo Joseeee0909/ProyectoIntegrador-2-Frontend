@@ -1,5 +1,6 @@
 import { signInWithCustomToken, signInWithEmailAndPassword, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
+import { getApiBaseUrl } from "../config/env";
 import { getFirebaseAuth, getGoogleProvider, getFirestoreDb } from "./firebase";
 import type { AuthBootstrapState, AuthSession, AuthUser, GoogleAuthProfile, LoginFormValues, LoginRequest, ProfileFormValues, RegisterFormValues, RegisterRequest, User } from "./types";
 
@@ -284,15 +285,6 @@ function findAccountByEmail(email: string, excludedId?: string) {
   return loadAccounts().find(
     (account) => account.email.trim().toLowerCase() === normalizedEmail && account.id !== excludedId,
   );
-}
-
-function getApiBaseUrl() {
-  const baseUrl = import.meta.env.VITE_API_URL as string | undefined;
-  if (!baseUrl) {
-    throw new AuthError("missing_api_url", "Falta configurar VITE_API_URL para conectar con el backend.");
-  }
-
-  return baseUrl.trim().replace(/\/$/, "");
 }
 
 const AUTH_ROUTE_CANDIDATES = {
