@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AvatarSelector from "../auth/AvatarSelector";
 import { ArrowLeft, BadgeCheck, Camera, Mail, Save, Sparkles, UserRound } from "lucide-react";
 import { AuthError, checkUsernameAvailability, updateProfile } from "../../auth/mockAuth";
 import { useToast } from "../ui/Toast";
@@ -263,16 +264,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
 
             <div className="grid gap-2">
               <label className="text-sm font-medium text-slate-100" htmlFor="profile-avatar">Avatar</label>
-              <input
-                id="profile-avatar"
-                className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
-                value={values.avatar}
-                onChange={(event) => {
-                  setValues((current) => ({ ...current, avatar: event.target.value }));
-                  if (error) setError("");
-                }}
-                placeholder="https://..."
-              />
+              <AvatarSelector value={values.avatar} onChange={(url) => { setValues((c) => ({ ...c, avatar: url })); if (error) setError(""); }} />
               <p className="text-sm text-slate-400">Si lo dejas vacío, se mantiene el avatar actual.</p>
             </div>
 
