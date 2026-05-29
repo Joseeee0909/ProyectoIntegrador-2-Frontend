@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import AvatarSelector from "../auth/AvatarSelector";
 import { ArrowLeft, BadgeCheck, Camera, Mail, Save, Sparkles, UserRound } from "lucide-react";
 import { AuthError, checkUsernameAvailability, updateProfile } from "../../auth/mockAuth";
+import { normalizeAvatarValue, resolveAvatarSrc } from "../../auth/avatar";
 import { useToast } from "../ui/Toast";
 import type { AuthUser, ProfileFormValues } from "../../auth/types";
 
@@ -20,7 +22,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
     lastNames: user.lastNames,
     username: user.username,
     email: user.email,
-    avatar: user.avatar ?? "",
+    avatar: normalizeAvatarValue(user.avatar ?? ""),
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -28,8 +30,10 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof ProfileFormValues, string>>>({});
   const [usernameState, setUsernameState] = useState<AvailabilityState>("idle");
   const [usernameMessage, setUsernameMessage] = useState("El username debe ser único.");
+  const [usernameTouched, setUsernameTouched] = useState(false);
   const [avatarErrored, setAvatarErrored] = useState(false);
   const toast = useToast();
+  const currentUsername = values.username.trim().toLowerCase();
 
   useEffect(() => {
     const normalized = values.username.trim();
@@ -73,7 +77,9 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-    }, [initialUsername, values.username]);
+  }, [initialUsername, values.username]);
+
+  const showUsernameFeedback = usernameTouched || currentUsername !== initialUsername || Boolean(fieldErrors.username);
 
   const validate = () => {
     const nextErrors: Partial<Record<keyof ProfileFormValues, string>> = {};
@@ -82,7 +88,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
     if (!values.username.trim()) nextErrors.username = "El username es obligatorio.";
     setFieldErrors(nextErrors);
 
-    const usernameChanged = values.username.trim().toLowerCase() !== initialUsername;
+    const usernameChanged = currentUsername !== initialUsername;
 
     return Object.keys(nextErrors).length === 0 && (!usernameChanged || usernameState !== "taken");
   };
@@ -134,7 +140,8 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
-  const hasRenderableAvatar = Boolean(values.avatar && !avatarErrored && /^https?:\/\//i.test(values.avatar));
+  const avatarSrc = resolveAvatarSrc(values.avatar);
+  const hasRenderableAvatar = Boolean(avatarSrc && !avatarErrored);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(124,116,255,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(96,165,250,0.08),transparent_26%),linear-gradient(180deg,#070a1f_0%,#030617_100%)] p-4 text-slate-100">
@@ -169,7 +176,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Vista previa</p>
             <div className="mt-4 flex items-center gap-4">
               <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 text-lg font-bold text-white ring-1 ring-white/10">
-                {hasRenderableAvatar ? <img src={values.avatar} alt="Avatar actual" className="h-full w-full object-cover" onError={() => setAvatarErrored(true)} /> : avatarInitials}
+                {hasRenderableAvatar ? <img src={avatarSrc} alt="Avatar actual" className="h-full w-full object-cover" onError={() => setAvatarErrored(true)} /> : avatarInitials}
               </div>
               <div>
                 <strong className="block text-base font-semibold text-slate-100">{`${values.names} ${values.lastNames}`.trim() || "Tu nombre"}</strong>
@@ -231,6 +238,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
                   className="h-12 min-w-0 flex-1 bg-transparent text-slate-100 outline-none placeholder:text-slate-500"
                   value={values.username}
                   onChange={(event) => {
+                    setUsernameTouched(true);
                     setValues((current) => ({ ...current, username: event.target.value }));
                     if (fieldErrors.username) setFieldErrors((current) => ({ ...current, username: undefined }));
                     if (error) setError("");
@@ -239,9 +247,11 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
                 />
                 <span className={`h-3 w-3 rounded-full ${usernameState === "checking" ? "bg-amber-400" : usernameState === "available" ? "bg-emerald-400" : usernameState === "taken" ? "bg-rose-400" : "bg-slate-500"}`} aria-hidden="true" />
               </div>
-              <p className={`text-sm ${usernameState === "available" ? "text-emerald-300" : usernameState === "taken" || usernameState === "error" ? "text-rose-300" : "text-slate-400"}`}>
-                {usernameMessage}
-              </p>
+              {showUsernameFeedback && (
+                <p className={`text-sm ${usernameState === "available" ? "text-emerald-300" : usernameState === "taken" || usernameState === "error" ? "text-rose-300" : "text-slate-400"}`}>
+                  {usernameMessage}
+                </p>
+              )}
               {fieldErrors.username && <p className="text-sm text-rose-300">{fieldErrors.username}</p>}
             </div>
 
@@ -263,16 +273,7 @@ export function ProfilePage({ user, onCancel, onSaved }: ProfilePageProps) {
 
             <div className="grid gap-2">
               <label className="text-sm font-medium text-slate-100" htmlFor="profile-avatar">Avatar</label>
-              <input
-                id="profile-avatar"
-                className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
-                value={values.avatar}
-                onChange={(event) => {
-                  setValues((current) => ({ ...current, avatar: event.target.value }));
-                  if (error) setError("");
-                }}
-                placeholder="https://..."
-              />
+              <AvatarSelector value={values.avatar} onChange={(url) => { setValues((c) => ({ ...c, avatar: url })); if (error) setError(""); }} />
               <p className="text-sm text-slate-400">Si lo dejas vacío, se mantiene el avatar actual.</p>
             </div>
 

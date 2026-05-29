@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { AuthError, checkUsernameAvailability, registerWithEmail } from "../../auth/mockAuth.ts";
+import AvatarSelector from "./AvatarSelector";
+import { isValidAvatarInput } from "../../auth/avatar";
 import type { RegisterFormValues } from "../../auth/types";
 
 interface RegisterFormProps {
@@ -7,8 +9,7 @@ interface RegisterFormProps {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const URL_PATTERN = /^(https?:\/\/)[^\s/$.?#].[^\s]*$/i;
-
+const EDU_CO_PATTERN = /^[^\s@]+@(?:[^\s@]+\.)*edu\.co$/i;
 type AvailabilityState = "idle" | "checking" | "available" | "taken" | "error" | "invalid";
 
 export function RegisterForm({ onSuccess }: RegisterFormProps) {
@@ -76,8 +77,9 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     else if (usernameState === "taken") nextErrors.username = usernameMessage;
     if (!values.email.trim()) nextErrors.email = "El correo es obligatorio.";
     else if (!EMAIL_PATTERN.test(values.email.trim())) nextErrors.email = "Ingresa un correo válido.";
+    else if (!EDU_CO_PATTERN.test(values.email.trim())) nextErrors.email = "Debes usar un correo institucional .edu.co.";
     if (!values.password.trim()) nextErrors.password = "La contraseña es obligatoria.";
-    if (values.avatar.trim() && !URL_PATTERN.test(values.avatar.trim())) nextErrors.avatar = "Ingresa una URL válida o deja este campo vacío.";
+    if (!isValidAvatarInput(values.avatar)) nextErrors.avatar = "Elige un avatar predeterminado o pega una URL válida.";
     setFieldErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -173,24 +175,11 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
       <div className="grid gap-2">
         <label className="text-sm font-medium text-slate-100" htmlFor="register-avatar">Avatar</label>
-        <input
-          id="register-avatar"
-          className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
-          type="url"
-          value={values.avatar}
-          autoComplete="photo"
-          aria-invalid={Boolean(fieldErrors.avatar)}
-          onChange={(event) => {
-            setValues((current) => ({ ...current, avatar: event.target.value }));
-            if (fieldErrors.avatar) setFieldErrors((current) => ({ ...current, avatar: undefined }));
-            if (error) setError("");
-          }}
-          placeholder="https://..."
-        />
+        <AvatarSelector value={values.avatar} onChange={(url) => { setValues((c) => ({ ...c, avatar: url })); if (fieldErrors.avatar) setFieldErrors((current) => ({ ...current, avatar: undefined })); if (error) setError(""); }} />
         {fieldErrors.avatar ? (
           <p className="text-sm text-rose-300">{fieldErrors.avatar}</p>
         ) : (
-          <p className="text-sm text-slate-400">Puedes dejarlo vacío y se usará un avatar con tus iniciales.</p>
+          <p className="text-sm text-slate-400">Elige un preset estable o pega una URL válida.</p>
         )}
       </div>
 
