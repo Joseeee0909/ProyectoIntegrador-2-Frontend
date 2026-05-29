@@ -444,19 +444,21 @@ function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, ro
 }) {
   return (
     <aside className="flex w-full min-h-0 flex-col overflow-hidden border-t border-white/5 bg-[#111320] xl:w-[340px] xl:min-w-[340px] xl:border-l xl:border-t-0 xl:border-white/5">
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
         <Section title="Sala">
-        <div className="grid gap-3 text-sm text-slate-300">
+        <div className="grid min-w-0 gap-3 text-sm text-slate-300">
           <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Código</p>
             <p className="mt-2 break-all font-mono text-sm text-slate-100">{roomCode}</p>
-            <p className="mt-2 text-xs text-slate-500">Sala: {room.name}</p>
-            <p className="mt-1 text-xs text-slate-500">Propietario: {ownerLabel || room.ownerUsername}</p>
+            <p className="mt-2 truncate text-xs text-slate-500">Sala: {room.name}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Propietario: <span className="block truncate">{ownerLabel || room.ownerUsername}</span>
+            </p>
           </div>
 
           <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Participantes</p>
-            <div className="mt-3 flex items-center gap-3">
+            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-full text-xs font-semibold text-white" style={{ background: participant.accent }}>
                 {participant.avatarSrc ? (
                   <img src={participant.avatarSrc} alt={`Avatar de ${participant.name}`} className="h-full w-full rounded-full object-cover" />
@@ -468,7 +470,7 @@ function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, ro
                 <p className="truncate text-sm font-medium text-slate-100">{participant.name}</p>
                 <p className="text-xs text-slate-500">Usuario activo</p>
               </div>
-              <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-emerald-100">active</span>
+              <span className="w-fit rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-emerald-100">active</span>
             </div>
           </div>
 
@@ -486,11 +488,11 @@ function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, ro
 
               {error ? <p role="alert" className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</p> : null}
 
-              <div className="flex flex-wrap gap-2">
-                <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 disabled:cursor-progress disabled:opacity-60" disabled={loading}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button type="submit" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 disabled:cursor-progress disabled:opacity-60" disabled={loading}>
                   <PencilLine className="h-4 w-4" /> {loading ? "Guardando..." : "Editar sala"}
                 </button>
-                <button type="button" className="inline-flex h-10 items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 text-sm font-medium text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-progress disabled:opacity-60" onClick={() => void onDeleteRoom()} disabled={loading}>
+                <button type="button" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 text-sm font-medium text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-progress disabled:opacity-60" onClick={() => void onDeleteRoom()} disabled={loading}>
                   <Trash2 className="h-4 w-4" /> Eliminar sala
                 </button>
               </div>
