@@ -35,6 +35,49 @@ function asString(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
+function getFirstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+function normalizeDate(value: unknown) {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (isRecord(value)) {
+    if (typeof value.toDate === "function") {
+      try {
+        const date = value.toDate();
+        if (date instanceof Date && !Number.isNaN(date.getTime())) {
+          return date.toISOString();
+        }
+      } catch {
+        // Ignore invalid timestamp-like objects.
+      }
+    }
+
+    if (typeof value.seconds === "number") {
+      return new Date(value.seconds * 1000).toISOString();
+    }
+
+    if (typeof value._seconds === "number") {
+      return new Date(value._seconds * 1000).toISOString();
+    }
+  }
+
+  return "";
+}
+
 function sanitizeRoomName(name: string) {
   return name.trim().replace(/\s+/g, " ").replace(/[<>]/g, "");
 }
@@ -61,12 +104,12 @@ function normalizeRoom(room: unknown): StudyRoom | null {
     return null;
   }
 
-  const id = asString(room.id);
-  const name = asString(room.name);
-  const ownerId = asString(room.ownerId ?? room.creatorId);
-  const ownerUsername = asString(room.ownerUsername ?? room.creatorUsername);
-  const createdAt = asString(room.createdAt);
-  const updatedAt = asString(room.updatedAt ?? room.modifiedAt ?? room.createdAt);
+  const id = getFirstString(room.id, room._id, room.roomId);
+  const name = getFirstString(room.name, room.title);
+  const ownerId = getFirstString(room.ownerId, room.creatorId, room.owner, room.createdBy, room.userId);
+  const ownerUsername = getFirstString(room.ownerUsername, room.creatorUsername, room.owner_name, room.username) || ownerId;
+  const createdAt = normalizeDate(room.createdAt ?? room.created_at ?? room.created ?? room.timestamp);
+  const updatedAt = normalizeDate(room.updatedAt ?? room.modifiedAt ?? room.updated_at ?? room.updated ?? room.createdAt ?? room.created_at);
 
   if (!id || !name || !ownerId || !ownerUsername || !createdAt) {
     return null;
@@ -140,7 +183,7 @@ export async function getRoomById(roomId: string, accessToken: string) {
   return extractRooms(body)[0] ?? null;
 }
 
-export async function createRoom(input: CreateRoomInput, accessToken: string) {
+export async function createRoom(input: CreateRoomInput, accessToken: string, currentUserId?: string) {
   const name = validateRoomName(input.name);
   const body = await requestJson(ROOMS_PATH, {
     method: "POST",
@@ -149,18 +192,35 @@ export async function createRoom(input: CreateRoomInput, accessToken: string) {
   });
 
   const room = extractRooms(body)[0];
-  if (!room) {
-    throw new Error("El backend no devolvió la sala creada.");
+  if (room) {
+    return room;
   }
 
-  return room;
+  const rooms = await listRooms(accessToken);
+  const normalizedName = name.trim().toLowerCase();
+  const matchingRooms = rooms.filter((candidate) => {
+    const sameName = candidate.name.trim().toLowerCase() === normalizedName;
+    const sameOwner = currentUserId ? candidate.ownerId === currentUserId : true;
+    return sameName && sameOwner;
+  });
+
+  if (matchingRooms.length > 0) {
+    return matchingRooms.sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  }
+
+  const latestRoom = rooms[0];
+  if (latestRoom) {
+    return latestRoom;
+  }
+
+  throw new Error("La sala se creó, pero el backend no devolvió su información todavía.");
 }
 
 export async function updateRoom(roomId: string, input: UpdateRoomInput, accessToken: string) {
   const name = validateRoomName(input.name);
   const encodedRoomId = encodeURIComponent(roomId);
   const body = await requestJson(`${ROOMS_PATH}/${encodedRoomId}`, {
-    method: "PATCH",
+    method: "PUT",
     headers: getAuthHeaders(accessToken),
     body: JSON.stringify({ name }),
   });
@@ -179,4 +239,22 @@ export async function deleteRoom(roomId: string, accessToken: string) {
     method: "DELETE",
     headers: getAuthHeaders(accessToken),
   });
+}
+
+async function mutateRoomMembership(roomId: string, action: "join" | "leave", accessToken: string) {
+  const encodedRoomId = encodeURIComponent(roomId);
+  const body = await requestJson(`${ROOMS_PATH}/${encodedRoomId}/${action}`, {
+    method: "POST",
+    headers: getAuthHeaders(accessToken),
+  });
+
+  return extractRooms(body)[0] ?? null;
+}
+
+export async function joinRoom(roomId: string, accessToken: string) {
+  return mutateRoomMembership(roomId, "join", accessToken);
+}
+
+export async function leaveRoom(roomId: string, accessToken: string) {
+  return mutateRoomMembership(roomId, "leave", accessToken);
 }

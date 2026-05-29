@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AuthError, checkUsernameAvailability, registerWithEmail } from "../../auth/mockAuth.ts";
 import AvatarSelector from "./AvatarSelector";
+import { isValidAvatarInput } from "../../auth/avatar";
 import type { RegisterFormValues } from "../../auth/types";
 
 interface RegisterFormProps {
@@ -8,8 +9,7 @@ interface RegisterFormProps {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const URL_PATTERN = /^(https?:\/\/)[^\s/$.?#].[^\s]*$/i;
-
+const EDU_CO_PATTERN = /^[^\s@]+@(?:[^\s@]+\.)*edu\.co$/i;
 type AvailabilityState = "idle" | "checking" | "available" | "taken" | "error" | "invalid";
 
 export function RegisterForm({ onSuccess }: RegisterFormProps) {
@@ -77,8 +77,9 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     else if (usernameState === "taken") nextErrors.username = usernameMessage;
     if (!values.email.trim()) nextErrors.email = "El correo es obligatorio.";
     else if (!EMAIL_PATTERN.test(values.email.trim())) nextErrors.email = "Ingresa un correo válido.";
+    else if (!EDU_CO_PATTERN.test(values.email.trim())) nextErrors.email = "Debes usar un correo institucional .edu.co.";
     if (!values.password.trim()) nextErrors.password = "La contraseña es obligatoria.";
-    if (values.avatar.trim() && !URL_PATTERN.test(values.avatar.trim())) nextErrors.avatar = "Ingresa una URL válida o deja este campo vacío.";
+    if (!isValidAvatarInput(values.avatar)) nextErrors.avatar = "Elige un avatar predeterminado o pega una URL válida.";
     setFieldErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -178,7 +179,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         {fieldErrors.avatar ? (
           <p className="text-sm text-rose-300">{fieldErrors.avatar}</p>
         ) : (
-          <p className="text-sm text-slate-400">Elige un avatar predeterminado o pega un enlace.</p>
+          <p className="text-sm text-slate-400">Elige un preset estable o pega una URL válida.</p>
         )}
       </div>
 

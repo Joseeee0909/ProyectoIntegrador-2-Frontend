@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, BadgeCheck, Sparkles, UserRound } from "lucide-react";
 import { AuthError, checkUsernameAvailability } from "../../auth/mockAuth";
+import { resolveAvatarSrc } from "../../auth/avatar";
 import type { GoogleAuthProfile } from "../../auth/types";
 
 interface UsernameSelectionProps {
@@ -23,7 +24,8 @@ export function UsernameSelection({ profile, onComplete, onBack }: UsernameSelec
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
-  const hasRenderableAvatar = Boolean(profile.avatar && /^https?:\/\//i.test(profile.avatar));
+  const avatarSrc = resolveAvatarSrc(profile.avatar);
+  const hasRenderableAvatar = Boolean(avatarSrc);
 
   const handleChange = async (value: string) => {
     setUsername(value);
@@ -105,7 +107,7 @@ export function UsernameSelection({ profile, onComplete, onBack }: UsernameSelec
 
           <div className="mt-6 flex items-center gap-4 rounded-[1.75rem] border border-white/10 bg-slate-950/40 p-4">
             <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-cyan-400/10 text-lg font-bold text-cyan-100" aria-hidden="true">
-              {hasRenderableAvatar ? <img src={profile.avatar} alt="" className="h-full w-full object-cover" /> : profileInitials}
+              {hasRenderableAvatar ? <img src={avatarSrc} alt="" className="h-full w-full object-cover" /> : profileInitials}
             </div>
             <div>
               <strong className="block text-base font-semibold text-slate-100">{profile.displayName}</strong>

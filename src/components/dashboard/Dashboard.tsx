@@ -1,7 +1,8 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { ArrowRight, BookOpen, Clock3, Hash, LogOut, Plus, Settings, Sparkles } from "lucide-react";
 import type { AuthUser } from "../../auth/types";
-import type { StudyRoom } from "../../services/rooms";
+import { resolveAvatarSrc } from "../../auth/avatar";
+import type { StudyRoom } from "../../services/rooms.ts";
 
 interface DashboardProps {
   user: AuthUser;
@@ -57,7 +58,8 @@ export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile, flash
     }
   };
 
-  const hasRenderableAvatar = Boolean(user.avatar && !avatarError && /^https?:\/\//i.test(user.avatar));
+  const avatarSrc = resolveAvatarSrc(user.avatar);
+  const hasRenderableAvatar = Boolean(avatarSrc && !avatarError);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(124,116,255,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(96,165,250,0.08),transparent_26%),linear-gradient(180deg,#070a1f_0%,#030617_100%)] p-4 text-slate-100">
@@ -91,7 +93,7 @@ export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile, flash
             <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 text-sm font-bold text-white ring-1 ring-white/10">
               {hasRenderableAvatar ? (
                 <img
-                  src={user.avatar}
+                  src={avatarSrc}
                   alt={`Avatar de ${displayName || user.username}`}
                   className="h-full w-full object-cover"
                   onError={() => setAvatarError(true)}
