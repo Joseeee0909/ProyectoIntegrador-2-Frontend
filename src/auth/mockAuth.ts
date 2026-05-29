@@ -1,5 +1,5 @@
 import { signInWithEmailAndPassword, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { deleteDoc, doc, setDoc } from "firebase/firestore";
 import { getApiBaseUrl } from "../config/env";
 import { getFirebaseAuth, getGoogleProvider, getFirestoreDb } from "./firebase";
 import type { AuthBootstrapState, AuthSession, AuthUser, GoogleAuthProfile, LoginFormValues, LoginRequest, ProfileFormValues, RegisterFormValues, RegisterRequest, User } from "./types";
@@ -288,6 +288,7 @@ const AUTH_ROUTE_CANDIDATES = {
   googleAuth: ["/api/auth/google"],
   completeGoogleProfile: ["/api/auth/google/complete"],
   updateProfile: ["/api/users/me"],
+  deleteAccount: ["/api/users/me"],
 } as const;
 
 async function fetchAuthenticatedBackendUser(accessToken: string) {
@@ -347,6 +348,12 @@ function getUserFirestoreId(user: AuthUser) {
 
 function getUserDocumentRef(user: AuthUser) {
   return doc(getFirestoreDb(), "users", getUserFirestoreId(user));
+}
+
+function clearStoredSession() {
+  localStorage.removeItem(AUTH_SESSION_KEY);
+  localStorage.removeItem(GOOGLE_PENDING_KEY);
+  void firebaseSignOut(getFirebaseAuth()).catch(() => undefined);
 }
 
 async function persistUserToFirestore(user: AuthUser) {
@@ -848,10 +855,44 @@ export async function updateProfile(values: ProfileFormValues) {
   return persistedUser;
 }
 
+export async function deleteCurrentUserAccount() {
+  const session = readJson<AuthSession>(AUTH_SESSION_KEY);
+  if (!session || !isSessionValid(session)) {
+    throw new AuthError("unauthorized", "Tu sesión expiró. Vuelve a iniciar sesión.");
+  }
+
+  const currentUser = session.user;
+  const accessToken = session.accessToken || (await getCurrentFirebaseIdToken());
+
+  const response = await fetchJsonFromCandidates(AUTH_ROUTE_CANDIDATES.deleteAccount, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  const body = response ? await readResponseBody(response) : {};
+  if (!response || !response.ok) {
+    const message = typeof body.message === "string" ? body.message : "No pudimos eliminar tu cuenta.";
+    throw new AuthError("delete_failed", message);
+  }
+
+  try {
+    await deleteDoc(getUserDocumentRef(currentUser));
+  } catch (firestoreError) {
+    saveAccounts(loadAccounts().filter((account) => account.id !== currentUser.id));
+    clearStoredSession();
+    throw firestoreError instanceof Error
+      ? new AuthError("delete_failed", `${firestoreError.message}. Tu cuenta ya fue eliminada del backend.`)
+      : new AuthError("delete_failed", "Tu cuenta ya fue eliminada del backend, pero falló la limpieza en Firebase.");
+  }
+
+  saveAccounts(loadAccounts().filter((account) => account.id !== currentUser.id));
+  clearStoredSession();
+}
+
 export function signOut() {
-  localStorage.removeItem(AUTH_SESSION_KEY);
-  localStorage.removeItem(GOOGLE_PENDING_KEY);
-  void firebaseSignOut(getFirebaseAuth()).catch(() => undefined);
+  clearStoredSession();
 }
 
 export function cancelGoogleSignIn() {

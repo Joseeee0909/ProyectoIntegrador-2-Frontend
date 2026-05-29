@@ -309,7 +309,7 @@ function AppRoutes() {
       />
       <Route
         path="/perfil"
-        element={activeUser ? <ProfilePage user={activeUser} onCancel={() => navigate("/dashboard")} onSaved={handleProfileSaved} /> : <Navigate to="/login" replace />}
+        element={activeUser ? <ProfilePage user={activeUser} onCancel={() => navigate("/dashboard")} onDeleted={handleLogout} onSaved={handleProfileSaved} /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/configuracion"
