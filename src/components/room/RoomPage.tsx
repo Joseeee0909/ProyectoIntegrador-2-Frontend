@@ -444,12 +444,12 @@ function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, ro
 }) {
   return (
     <aside className="flex w-full min-h-0 flex-col overflow-hidden border-t border-white/5 bg-[#111320] xl:w-[340px] xl:min-w-[340px] xl:border-l xl:border-t-0 xl:border-white/5">
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
         <Section title="Sala">
         <div className="grid gap-3 text-sm text-slate-300">
           <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Código</p>
-            <p className="mt-2 font-mono text-sm text-slate-100">{roomCode}</p>
+            <p className="mt-2 break-all font-mono text-sm text-slate-100">{roomCode}</p>
             <p className="mt-2 text-xs text-slate-500">Sala: {room.name}</p>
             <p className="mt-1 text-xs text-slate-500">Propietario: {ownerLabel || room.ownerUsername}</p>
           </div>
