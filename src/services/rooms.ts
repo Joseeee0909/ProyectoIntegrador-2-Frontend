@@ -31,10 +31,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function asString(value: unknown) {
-  return typeof value === "string" ? value : "";
-}
-
 function getFirstString(...values: unknown[]) {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) {

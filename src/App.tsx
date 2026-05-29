@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, BookOpen, LogOut, Sparkles } from "lucide-react";
 import { ToastProvider } from "./components/ui/Toast";

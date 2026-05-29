@@ -50,13 +50,6 @@ function getDisplayDate(date: Date) {
   }).format(date);
 }
 
-function getTimeLabel(date: Date) {
-  return new Intl.DateTimeFormat("es-ES", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
-}
 
 function getJwtSubject(token: string) {
   if (!token) return "";
@@ -208,7 +201,6 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
             room={room}
             onBack={onBack}
             onSettings={onSettings}
-            onLogout={onLogout}
             onLeaveRoom={handleLeaveRoom}
             memberActionLoading={memberActionLoading}
           />
@@ -307,11 +299,10 @@ function DashboardSidebar({ user, onBack, onOpenProfile, onSettings, onLogout }:
   );
 }
 
-function RoomHeader({ room, onBack, onSettings, onLogout, onLeaveRoom, memberActionLoading }: {
+function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading }: {
   room: StudyRoom;
   onBack: () => void;
   onSettings: () => void;
-  onLogout: () => void;
   onLeaveRoom: () => void;
   memberActionLoading: boolean;
 }) {
