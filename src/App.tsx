@@ -197,7 +197,26 @@ function AppRoutes() {
       throw new Error("Debes iniciar sesión para unirte a una sala.");
     }
 
+    // Call the join endpoint to add user as participant
+    const joinResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/rooms/${encodeURIComponent(roomId)}/join`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session?.accessToken ?? ""}`,
+      },
+    });
+
+    if (!joinResponse.ok) {
+      const body = await joinResponse.json().catch(() => ({}));
+      const errorMessage = (body as { error?: string }).error || "La sala no fue encontrada. Verifica el ID e intenta de nuevo.";
+      throw new Error(errorMessage);
+    }
+
     const room = await getRoomById(roomId, session?.accessToken ?? "");
+    if (!room) {
+      throw new Error("La sala no fue encontrada. Verifica el ID e intenta de nuevo.");
+    }
+
     setFlashMessage(`Te has unido a la sala "${room.name}".`);
     navigate(`/sala/${room.id}`);
   };

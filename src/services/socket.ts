@@ -1,16 +1,17 @@
 import { io, Socket } from "socket.io-client";
-import { getApiBaseUrl } from "../config/env";
 
 let socket: Socket | null = null;
 
-export function initSocket(token?: string) {
+function getSocketUrl(): string {
+  return (import.meta.env.VITE_SOCKET_URL as string) || "http://localhost:4000";
+}
+
+export function initSocket(token?: string): Socket {
   if (socket && socket.connected) return socket;
 
-  const defaultUrl = getApiBaseUrl();
-  const socketUrl = (import.meta.env.VITE_SOCKET_URL as string) || defaultUrl || "https://backend-realtime-j6a0.onrender.com";
+  const socketUrl = getSocketUrl();
 
   socket = io(socketUrl, {
-    path: "/socket.io",
     transports: ["websocket"],
     auth: token ? { token } : undefined,
     autoConnect: true,
@@ -33,24 +34,50 @@ export function disconnectSocket() {
   socket = null;
 }
 
-export function on(event: string, cb: (...args: any[]) => void) {
-  if (!socket) initSocket();
-  socket?.on(event, cb);
+export function joinRoom(roomId: string) {
+  if (!socket) return;
+  socket.emit("join-room", roomId);
 }
 
-export function off(event: string, cb?: (...args: any[]) => void) {
-  socket?.off(event, cb);
+export function leaveSocketRoom(roomId: string) {
+  if (!socket) return;
+  socket.emit("leave-room", roomId);
 }
 
-export function emit(event: string, ...args: any[]) {
-  socket?.emit(event, ...args);
+export function sendMessage(roomId: string, content: string, token: string) {
+  if (!socket) return;
+  socket.emit("send-message", { roomId, content, token });
+}
+
+export function onNewMessage(cb: (message: unknown) => void) {
+  if (!socket) return;
+  socket.on("new-message", cb);
+}
+
+export function offNewMessage(cb: (message: unknown) => void) {
+  if (!socket) return;
+  socket.off("new-message", cb);
+}
+
+export function onMessageError(cb: (error: { message: string }) => void) {
+  if (!socket) return;
+  socket.on("message-error", cb);
+}
+
+export function offMessageError(cb: (error: { message: string }) => void) {
+  if (!socket) return;
+  socket.off("message-error", cb);
 }
 
 export default {
   initSocket,
   getSocket,
   disconnectSocket,
-  on,
-  off,
-  emit,
+  joinRoom,
+  leaveSocketRoom,
+  sendMessage,
+  onNewMessage,
+  offNewMessage,
+  onMessageError,
+  offMessageError,
 };

@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Image,
@@ -8,6 +8,7 @@ import {
   Paperclip,
   PencilLine,
   ScreenShare,
+  Send,
   Settings,
   Sigma,
   Smile,
@@ -20,6 +21,8 @@ import type { ReactNode } from "react";
 import type { AuthUser } from "../../auth/types";
 import { resolveAvatarSrc } from "../../auth/avatar";
 import { type StudyRoom, leaveRoom } from "../../services/rooms";
+import { type ChatMessage, fetchRoomMessages, normalizeMessage } from "../../services/messages";
+import { initSocket, joinRoom as joinSocketRoom, leaveSocketRoom, sendMessage, onNewMessage, offNewMessage, onMessageError, offMessageError, disconnectSocket } from "../../services/socket";
 
 interface RoomPageProps {
   room: StudyRoom | null;
@@ -223,6 +226,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
                 onSendMessage={handleSendMessage}
                 userInitials={userInitials || user.username.slice(0, 2).toUpperCase()}
                 avatarSrc={avatarSrc}
+                accessToken={accessToken}
               />
             </div>
             <div className="hidden min-h-0 flex-1 flex-col xl:flex">
@@ -402,6 +406,7 @@ function ChatPane({
   onSendMessage,
   userInitials,
   avatarSrc,
+  accessToken,
 }: {
   room: StudyRoom;
   user: AuthUser;
@@ -410,35 +415,248 @@ function ChatPane({
   onSendMessage: () => void;
   userInitials: string;
   avatarSrc: string | null;
+  accessToken: string;
 }) {
+  const PAGE_SIZE = 30;
   const todayLabel = useMemo(() => getDisplayDate(new Date()), []);
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [chatError, setChatError] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
+
+  // Auto-scroll to bottom only for new messages (not when loading older)
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  };
+
+  // Load initial messages (most recent PAGE_SIZE)
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHistory() {
+      setLoadingMessages(true);
+      setChatError("");
+      setHasMore(true);
+      isInitialLoad.current = true;
+      try {
+        const history = await fetchRoomMessages(room.id, accessToken, { limit: PAGE_SIZE });
+        if (!cancelled) {
+          setMessages(history);
+          if (history.length < PAGE_SIZE) {
+            setHasMore(false);
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setChatError(err instanceof Error ? err.message : "Error cargando mensajes.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingMessages(false);
+        }
+      }
+    }
+
+    void loadHistory();
+    return () => { cancelled = true; };
+  }, [room.id, accessToken]);
+
+  // Scroll to bottom after initial load
+  useEffect(() => {
+    if (!loadingMessages && isInitialLoad.current) {
+      isInitialLoad.current = false;
+      setTimeout(() => scrollToBottom("instant"), 50);
+    }
+  }, [loadingMessages]);
+
+  // Load older messages when scrolling to top
+  const loadOlderMessages = async () => {
+    if (loadingOlder || !hasMore || messages.length === 0) return;
+
+    const oldestMessage = messages[0];
+    if (!oldestMessage) return;
+
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const prevScrollHeight = container.scrollHeight;
+    const prevScrollTop = container.scrollTop;
+
+    setLoadingOlder(true);
+    try {
+      const olderMessages = await fetchRoomMessages(room.id, accessToken, {
+        limit: PAGE_SIZE,
+        before: oldestMessage.id,
+      });
+
+      if (olderMessages.length < PAGE_SIZE) {
+        setHasMore(false);
+      }
+
+      if (olderMessages.length > 0) {
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id));
+          const newMessages = olderMessages.filter((m) => !existingIds.has(m.id));
+          return [...newMessages, ...prev];
+        });
+
+        // Restore scroll position after DOM updates
+        requestAnimationFrame(() => {
+          if (container) {
+            const newScrollHeight = container.scrollHeight;
+            container.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+          }
+        });
+      }
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Error cargando mensajes anteriores.");
+      setTimeout(() => setChatError(""), 4000);
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
+
+  // Scroll event handler for infinite scroll upward
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (container.scrollTop < 80 && hasMore && !loadingOlder) {
+        void loadOlderMessages();
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [hasMore, loadingOlder, messages]);
+
+  // Connect to socket and listen for real-time messages
+  useEffect(() => {
+    initSocket(accessToken);
+    joinSocketRoom(room.id);
+
+    const handleNewMessage = (raw: unknown) => {
+      const msg = normalizeMessage(raw);
+      if (msg) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+        // Auto-scroll on new messages
+        setTimeout(() => scrollToBottom(), 50);
+      }
+    };
+
+    const handleError = (error: { message: string }) => {
+      setChatError(error.message);
+      setTimeout(() => setChatError(""), 4000);
+    };
+
+    onNewMessage(handleNewMessage);
+    onMessageError(handleError);
+
+    return () => {
+      offNewMessage(handleNewMessage);
+      offMessageError(handleError);
+      leaveSocketRoom(room.id);
+    };
+  }, [room.id, accessToken]);
+
+  const handleSend = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return; // Block empty messages
+
+    sendMessage(room.id, trimmed, accessToken);
+    onDraftChange("");
+    onSendMessage();
+  };
+
+  const currentUserId = user.id || user.uid || user.firestoreId || "";
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden xl:min-w-0">
-      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+        {/* Loading older messages indicator */}
+        {loadingOlder && (
+          <div className="mb-3 flex justify-center py-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-400">
+              <div className="h-3 w-3 animate-spin rounded-full border border-white/20 border-t-cyan-300" />
+              Cargando mensajes anteriores...
+            </div>
+          </div>
+        )}
+
+        {/* No more messages indicator */}
+        {!hasMore && messages.length > 0 && (
+          <div className="mb-3 flex justify-center py-2">
+            <span className="text-[10px] uppercase tracking-[0.5px] text-[#3a3f5a]">— Inicio de la conversación —</span>
+          </div>
+        )}
+
         <div className="mb-4 flex items-center gap-3 py-2">
           <hr className="flex-1 border-white/5" />
           <span className="text-[10px] uppercase tracking-[0.5px] text-[#3a3f5a] sm:text-[11px]">hoy — {todayLabel}</span>
           <hr className="flex-1 border-white/5" />
         </div>
 
-        <div className="grid min-h-[300px] place-items-center rounded-[1.5rem] border border-dashed border-white/10 bg-slate-950/30 px-4 py-8 text-center sm:min-h-[420px] sm:px-6 sm:py-10">
-          <div className="w-full max-w-2xl">
-            <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-cyan-300 sm:h-14 sm:w-14">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <h2 className="mt-5 text-2xl font-semibold tracking-tight text-slate-100 sm:text-3xl">No hay mensajes todavía</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-400 sm:text-base sm:leading-7">Escribe el primer mensaje para arrancar la conversación de esta sala.</p>
+        {chatError && (
+          <div className="mb-3 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+            {chatError}
+          </div>
+        )}
 
-            <div className="mt-6 grid gap-3 sm:mt-8 sm:grid-cols-2 lg:grid-cols-3">
-              <SkeletonMessage />
-              <SkeletonMessage />
-              <SkeletonMessage className="hidden lg:block" />
+        {loadingMessages ? (
+          <div className="grid min-h-[300px] place-items-center sm:min-h-[420px]">
+            <div className="text-center">
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" />
+              <p className="mt-4 text-sm text-slate-400">Cargando mensajes...</p>
             </div>
           </div>
-        </div>
+        ) : messages.length === 0 ? (
+          <div className="grid min-h-[300px] place-items-center rounded-[1.5rem] border border-dashed border-white/10 bg-slate-950/30 px-4 py-8 text-center sm:min-h-[420px] sm:px-6 sm:py-10">
+            <div className="w-full max-w-2xl">
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-cyan-300 sm:h-14 sm:w-14">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <h2 className="mt-5 text-2xl font-semibold tracking-tight text-slate-100 sm:text-3xl">No hay mensajes todavía</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-400 sm:text-base sm:leading-7">Escribe el primer mensaje para arrancar la conversación de esta sala.</p>
+
+              <div className="mt-6 grid gap-3 sm:mt-8 sm:grid-cols-2 lg:grid-cols-3">
+                <SkeletonMessage />
+                <SkeletonMessage />
+                <SkeletonMessage className="hidden lg:block" />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {messages.map((msg) => {
+              const isOwnMessage = msg.senderId === currentUserId;
+              return (
+                <div key={msg.id} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${isOwnMessage ? "bg-gradient-to-r from-violet-500/20 to-cyan-500/20 border border-violet-400/20" : "border border-white/10 bg-white/5"}`}>
+                    {!isOwnMessage && (
+                      <p className="mb-1 text-[11px] font-medium text-cyan-300">{msg.senderId.slice(0, 8)}...</p>
+                    )}
+                    <p className="text-sm leading-6 text-slate-100 break-words">{msg.content}</p>
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      {new Date(msg.createdAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
       </div>
+
       <footer className="shrink-0 border-t border-white/5 bg-[#0d0f1a] px-3 py-3 sm:px-5 sm:py-4">
         <div className="mb-2 flex flex-wrap gap-2 sm:mb-3">
           <QuickChip icon={Paperclip} label="Adjuntar" />
@@ -463,12 +681,17 @@ function ChatPane({
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                onSendMessage();
+                handleSend();
               }
             }}
           />
-          <button type="button" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#7c6af7] to-[#5b8aea] text-white transition hover:opacity-90 sm:h-10 sm:w-10" onClick={onSendMessage}>
-            <Paperclip className="h-4 w-4" />
+          <button
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#7c6af7] to-[#5b8aea] text-white transition hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed sm:h-10 sm:w-10"
+            onClick={handleSend}
+            disabled={!draft.trim()}
+          >
+            <Send className="h-4 w-4" />
           </button>
         </div>
       </footer>
