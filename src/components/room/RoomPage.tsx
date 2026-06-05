@@ -538,8 +538,18 @@ function ChatPane({
 
   // Connect to socket and listen for real-time messages
   useEffect(() => {
-    initSocket(accessToken);
-    joinSocketRoom(room.id);
+    const sock = initSocket(accessToken);
+
+    const handleConnect = () => {
+      joinSocketRoom(room.id);
+    };
+
+    // If already connected, join immediately
+    if (sock.connected) {
+      handleConnect();
+    } else {
+      sock.on("connect", handleConnect);
+    }
 
     const handleNewMessage = (raw: unknown) => {
       const msg = normalizeMessage(raw);
@@ -562,6 +572,7 @@ function ChatPane({
     onMessageError(handleError);
 
     return () => {
+      sock.off("connect", handleConnect);
       offNewMessage(handleNewMessage);
       offMessageError(handleError);
       leaveSocketRoom(room.id);

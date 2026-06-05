@@ -7,19 +7,19 @@ function getSocketUrl(): string {
 }
 
 export function initSocket(token?: string): Socket {
-  if (socket && socket.connected) return socket;
+  if (socket) return socket;
 
   const socketUrl = getSocketUrl();
 
   socket = io(socketUrl, {
-    transports: ["websocket"],
+    transports: ["websocket", "polling"],
     auth: token ? { token } : undefined,
     autoConnect: true,
   });
 
   socket.on("connect", () => console.debug("[socket] connected", socket?.id));
   socket.on("disconnect", (reason) => console.debug("[socket] disconnected", reason));
-  socket.on("connect_error", (err) => console.error("[socket] connect_error", err));
+  socket.on("connect_error", (err) => console.error("[socket] connect_error", err.message));
 
   return socket;
 }
