@@ -22,7 +22,7 @@ import type { AuthUser } from "../../auth/types";
 import { resolveAvatarSrc } from "../../auth/avatar";
 import { type StudyRoom, leaveRoom } from "../../services/rooms";
 import { type ChatMessage, fetchRoomMessages, normalizeMessage } from "../../services/messages";
-import { initSocket, joinRoom as joinSocketRoom, leaveSocketRoom, sendMessage, onNewMessage, offNewMessage, onMessageError, offMessageError, disconnectSocket } from "../../services/socket";
+import { initSocket, joinRoom as joinSocketRoom, leaveSocketRoom, sendMessage, onNewMessage, offNewMessage, onMessageError, offMessageError } from "../../services/socket";
 
 interface RoomPageProps {
   room: StudyRoom | null;
@@ -710,7 +710,7 @@ function ChatPane({
   );
 }
 
-function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, roomName, setRoomName, loading, onDeleteRoom, ownerLabel, deleteLoading, onShowDeleteConfirm }: {
+function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, roomName, setRoomName, loading, onDeleteRoom: _onDeleteRoom, ownerLabel, deleteLoading, onShowDeleteConfirm }: {
   room: StudyRoom;
   roomCode: string;
   participant: Participant;
