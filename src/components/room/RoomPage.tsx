@@ -70,6 +70,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
   const [memberActionLoading, setMemberActionLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     setRoomName(room?.name ?? "");
@@ -119,17 +120,24 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     }
   };
 
-  const handleDelete = async () => {
-    if (!room || !isOwner) return;
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!room) return;
 
     setError("");
-    setLoading(true);
+    setDeleteLoading(true);
     try {
       await onDeleteRoom(room.id);
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : "No pudimos eliminar la sala.");
     } finally {
-      setLoading(false);
+      setDeleteLoading(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -226,15 +234,50 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
                 roomName={roomName}
                 setRoomName={setRoomName}
                 loading={loading}
-                onDeleteRoom={handleDelete}
+                onDeleteRoom={confirmDelete}
                 participant={currentParticipant}
                 roomCode={roomCode}
                 ownerLabel={ownerLabel}
+                deleteLoading={deleteLoading}
+                onShowDeleteConfirm={handleDelete}
               />
             </div>
           </div>
         </div>
       </div>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[1.75rem] border border-white/10 bg-slate-950 p-6 shadow-2xl shadow-black/40">
+            <h3 className="text-xl font-semibold text-slate-100">
+              ¿Quieres eliminar esta sala?
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              Si continúas, se eliminará la sala y todos sus datos de forma permanente.
+              Esta acción no se puede deshacer.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteLoading}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                No, cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleteLoading}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 text-sm font-medium text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleteLoading ? "Eliminando..." : "Sí, eliminar sala"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -433,7 +476,7 @@ function ChatPane({
   );
 }
 
-function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, roomName, setRoomName, loading, onDeleteRoom, ownerLabel }: {
+function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, roomName, setRoomName, loading, onDeleteRoom, ownerLabel, deleteLoading, onShowDeleteConfirm }: {
   room: StudyRoom;
   roomCode: string;
   participant: Participant;
@@ -445,6 +488,8 @@ function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, ro
   loading: boolean;
   onDeleteRoom: () => Promise<void>;
   ownerLabel: string;
+  deleteLoading: boolean;
+  onShowDeleteConfirm: () => void;
 }) {
   return (
     <aside className="flex w-full min-h-0 flex-col overflow-hidden border-t border-white/5 bg-[#111320] xl:w-[340px] xl:min-w-[340px] xl:border-l xl:border-t-0 xl:border-white/5">
@@ -492,11 +537,11 @@ function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, ro
 
               {error ? <p role="alert" className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</p> : null}
 
-              <div className="grid gap-2 sm:grid-cols-2">
+<div className="grid gap-2 sm:grid-cols-2">
                 <button type="submit" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 disabled:cursor-progress disabled:opacity-60" disabled={loading}>
                   <PencilLine className="h-4 w-4" /> {loading ? "Guardando..." : "Editar sala"}
                 </button>
-                <button type="button" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 text-sm font-medium text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-progress disabled:opacity-60" onClick={() => void onDeleteRoom()} disabled={loading}>
+                <button type="button" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 text-sm font-medium text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-progress disabled:opacity-60" onClick={onShowDeleteConfirm} disabled={loading || deleteLoading}>
                   <Trash2 className="h-4 w-4" /> Eliminar sala
                 </button>
               </div>
