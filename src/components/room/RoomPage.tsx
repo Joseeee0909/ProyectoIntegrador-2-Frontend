@@ -303,7 +303,7 @@ function DashboardSidebar({ user, onBack, onOpenProfile, onSettings, onLogout }:
     .join("");
 
   return (
-    <aside className="flex h-full flex-col gap-6 overflow-hidden border-b border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur-xl xl:border-b-0 xl:border-r xl:border-white/10">
+    <aside className="hidden xl:flex h-full flex-col gap-6 overflow-hidden border-b border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur-xl xl:border-b-0 xl:border-r xl:border-white/10">
       <div className="flex items-center gap-3">
         <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 text-white shadow-lg shadow-violet-500/20">
           <BookOpen className="h-5 w-5" />
