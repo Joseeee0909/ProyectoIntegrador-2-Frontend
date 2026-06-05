@@ -192,6 +192,16 @@ function AppRoutes() {
     navigate(`/sala/${room.id}`);
   };
 
+  const handleJoinRoom = async (roomId: string) => {
+    if (!activeUser) {
+      throw new Error("Debes iniciar sesión para unirte a una sala.");
+    }
+
+    const room = await getRoomById(roomId, session?.accessToken ?? "");
+    setFlashMessage(`Te has unido a la sala "${room.name}".`);
+    navigate(`/sala/${room.id}`);
+  };
+
   const handleRenameRoom = async (roomToRenameId: string, name: string) => {
     if (!activeUser) {
       throw new Error("Debes iniciar sesión para editar una sala.");
@@ -298,6 +308,7 @@ function AppRoutes() {
               roomsError={roomsError}
               onCreateRoom={handleCreateRoom}
               onOpenRoom={(id) => navigate(`/sala/${id}`)}
+              onJoinRoom={handleJoinRoom}
               onLogout={handleLogout}
               onOpenSettings={() => navigate("/configuracion")}
               onOpenProfile={() => navigate("/perfil")}

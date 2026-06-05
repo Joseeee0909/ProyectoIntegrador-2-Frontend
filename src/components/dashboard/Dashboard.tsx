@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { ArrowRight, BookOpen, Clock3, Hash, LogOut, Plus, Settings, Sparkles } from "lucide-react";
+import { ArrowRight, BookOpen, Clock3, Hash, LogOut, Plus, Settings, Sparkles, Users, X } from "lucide-react";
 import type { AuthUser } from "../../auth/types";
 import { resolveAvatarSrc } from "../../auth/avatar";
 import type { StudyRoom } from "../../services/rooms.ts";
@@ -13,15 +13,20 @@ interface DashboardProps {
   roomsError: string;
   onCreateRoom: (name: string) => Promise<void>;
   onOpenRoom: (roomId: string) => void;
+  onJoinRoom: (roomId: string) => Promise<void>;
   onOpenSettings: () => void;
   onOpenProfile: () => void;
 }
 
-export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile, flashMessage, rooms, roomsLoading, roomsError, onCreateRoom, onOpenRoom }: DashboardProps) {
+export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile, flashMessage, rooms, roomsLoading, roomsError, onCreateRoom, onOpenRoom, onJoinRoom }: DashboardProps) {
   const [avatarError, setAvatarError] = useState(false);
   const [roomName, setRoomName] = useState("");
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [joinRoomId, setJoinRoomId] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [joining, setJoining] = useState(false);
   const displayName = [user.names, user.lastNames || user.lastNames || user.lastNames]
     .filter((part): part is string => Boolean(part && part.trim()))
     .join(" ")
@@ -58,10 +63,33 @@ export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile, flash
     }
   };
 
+  const handleJoinRoom = async (event: FormEvent) => {
+    event.preventDefault();
+    setJoinError("");
+
+    const trimmedId = joinRoomId.trim();
+    if (!trimmedId) {
+      setJoinError("Ingresa el ID de la sala.");
+      return;
+    }
+
+    setJoining(true);
+    try {
+      await onJoinRoom(trimmedId);
+      setJoinRoomId("");
+      setShowJoinModal(false);
+    } catch (error) {
+      setJoinError(error instanceof Error ? error.message : "No pudimos unirte a la sala.");
+    } finally {
+      setJoining(false);
+    }
+  };
+
   const avatarSrc = resolveAvatarSrc(user.avatar);
   const hasRenderableAvatar = Boolean(avatarSrc && !avatarError);
 
   return (
+    <>
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(124,116,255,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(96,165,250,0.08),transparent_26%),linear-gradient(180deg,#070a1f_0%,#030617_100%)] p-4 text-slate-100">
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-7xl grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="flex flex-col gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur-xl">
@@ -175,6 +203,27 @@ export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile, flash
             {createError && <p className="text-sm text-rose-300">{createError}</p>}
           </section>
 
+          <section className="grid gap-4 rounded-[1.75rem] border border-white/10 bg-slate-950/40 p-5">
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/5 text-cyan-300">
+                <Users className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-100">Unirse a sala</h2>
+                <p className="text-sm text-slate-400">Ingresa el ID de una sala para unirte a ella.</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+              onClick={() => setShowJoinModal(true)}
+            >
+              <Users className="h-4 w-4" />
+              Unirse a una sala
+            </button>
+          </section>
+
           {roomsLoading ? (
             <section className="flex min-h-[340px] flex-col items-center justify-center rounded-[2rem] border border-dashed border-white/10 bg-slate-950/40 px-6 py-10 text-center">
               <div className="h-14 w-14 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" aria-hidden="true" />
@@ -221,5 +270,36 @@ export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile, flash
         </main>
       </div>
     </div>
+    {showJoinModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowJoinModal(false)}>
+        <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-slate-100">Unirse a sala</h2>
+            <button type="button" className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10" onClick={() => setShowJoinModal(false)} aria-label="Cerrar">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <form className="mt-4 grid gap-3" onSubmit={handleJoinRoom} noValidate>
+            <input
+              className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
+              value={joinRoomId}
+              onChange={(event) => {
+                setJoinRoomId(event.target.value);
+                if (joinError) setJoinError("");
+              }}
+              placeholder="ID de la sala"
+              autoFocus
+            />
+            {joinError && <p className="text-sm text-rose-300">{joinError}</p>}
+            <button type="submit" className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-5 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 disabled:cursor-progress disabled:opacity-60" disabled={joining}>
+              <Users className="h-4 w-4" />
+              {joining ? "Uniendo..." : "Unirse"}
+            </button>
+          </form>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
