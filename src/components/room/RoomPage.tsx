@@ -653,7 +653,7 @@ function ChatPane({
                 <div key={msg.id} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${isOwnMessage ? "bg-gradient-to-r from-violet-500/20 to-cyan-500/20 border border-violet-400/20" : "border border-white/10 bg-white/5"}`}>
                     {!isOwnMessage && (
-                      <p className="mb-1 text-[11px] font-medium text-cyan-300">{msg.senderId.slice(0, 8)}...</p>
+                      <p className="mb-1 text-[11px] font-medium text-cyan-300">{msg.senderName || msg.senderId.slice(0, 8)}</p>
                     )}
                     <p className="text-sm leading-6 text-slate-100 break-words">{msg.content}</p>
                     <p className="mt-1 text-[10px] text-slate-500">

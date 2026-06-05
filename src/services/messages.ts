@@ -4,6 +4,7 @@ export interface ChatMessage {
   id: string;
   roomId: string;
   senderId: string;
+  senderName?: string;
   content: string;
   createdAt: string;
 }
@@ -44,12 +45,13 @@ export function normalizeMessage(raw: unknown): ChatMessage | null {
   const id = (msg.id ?? msg._id ?? "") as string;
   const roomId = (msg.roomId ?? "") as string;
   const senderId = (msg.senderId ?? msg.userId ?? "") as string;
+  const senderName = (msg.senderName ?? msg.username ?? "") as string;
   const content = (msg.content ?? msg.text ?? "") as string;
   const createdAt = normalizeDate(msg.createdAt ?? msg.created_at ?? msg.timestamp);
 
   if (!id || !content) return null;
 
-  return { id, roomId, senderId, content, createdAt };
+  return { id, roomId, senderId, senderName, content, createdAt };
 }
 
 export async function fetchRoomMessages(
