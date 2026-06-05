@@ -198,7 +198,7 @@ function AppRoutes() {
     }
 
     // Call the join endpoint to add user as participant
-    const joinResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/rooms/${encodeURIComponent(roomId)}/join`, {
+    const joinResponse = await fetch(`${import.meta.env.VITE_API_URL}api/rooms/${encodeURIComponent(roomId)}/join`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
