@@ -73,6 +73,23 @@ export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile, flash
       return;
     }
 
+    // Validate format: only alphanumeric, hyphens, and underscores allowed (UUID-like)
+    const validIdPattern = /^[a-zA-Z0-9\-_]+$/;
+    if (!validIdPattern.test(trimmedId)) {
+      setJoinError("El código de la sala no tiene un formato válido. Solo se permiten letras, números y guiones.");
+      return;
+    }
+
+    if (trimmedId.length < 4) {
+      setJoinError("El código de la sala es demasiado corto.");
+      return;
+    }
+
+    if (trimmedId.length > 128) {
+      setJoinError("El código de la sala es demasiado largo.");
+      return;
+    }
+
     setJoining(true);
     try {
       await onJoinRoom(trimmedId);
@@ -281,17 +298,21 @@ export function Dashboard({ user, onLogout, onOpenSettings, onOpenProfile, flash
           </div>
 
           <form className="mt-4 grid gap-3" onSubmit={handleJoinRoom} noValidate>
-            <input
-              className="h-12 rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
-              value={joinRoomId}
-              onChange={(event) => {
-                setJoinRoomId(event.target.value);
-                if (joinError) setJoinError("");
-              }}
-              placeholder="ID de la sala"
-              autoFocus
-            />
-            {joinError && <p className="text-sm text-rose-300">{joinError}</p>}
+            <div>
+              <input
+                className={`h-12 w-full rounded-2xl border px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:ring-4 ${joinError ? "border-rose-400/50 bg-rose-400/5 focus:border-rose-400/50 focus:ring-rose-400/10" : "border-white/10 bg-white/5 focus:border-cyan-400/50 focus:ring-cyan-400/10"}`}
+                value={joinRoomId}
+                onChange={(event) => {
+                  setJoinRoomId(event.target.value);
+                  if (joinError) setJoinError("");
+                }}
+                placeholder="ID de la sala (ej: 3f8a2b1c-...)"
+                autoFocus
+                aria-invalid={!!joinError}
+                aria-describedby={joinError ? "join-error" : undefined}
+              />
+              {joinError && <p id="join-error" role="alert" className="mt-2 text-sm text-rose-300">{joinError}</p>}
+            </div>
             <button type="submit" className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-5 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 disabled:cursor-progress disabled:opacity-60" disabled={joining}>
               <Users className="h-4 w-4" />
               {joining ? "Uniendo..." : "Unirse"}
