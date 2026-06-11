@@ -741,19 +741,21 @@ function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, ro
 
           <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Participantes</p>
-            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-full text-xs font-semibold text-white" style={{ background: participant.accent }}>
-                {participant.avatarSrc ? (
-                  <img src={participant.avatarSrc} alt={`Avatar de ${participant.name}`} className="h-full w-full rounded-full object-cover" />
-                ) : (
-                  participant.initials
-                )}
+            <div className="mt-3 grid gap-3 auto-cols-max" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+              <div className="flex min-w-0 flex-col items-center rounded-lg border border-white/10 bg-white/5 p-3 gap-2">
+                <div className="grid h-10 w-10 place-items-center rounded-full text-xs font-semibold text-white" style={{ background: participant.accent }}>
+                  {participant.avatarSrc ? (
+                    <img src={participant.avatarSrc} alt={`Avatar de ${participant.name}`} className="h-full w-full rounded-full object-cover" />
+                  ) : (
+                    participant.initials
+                  )}
+                </div>
+                <div className="min-w-0 text-center flex-1">
+                  <p className="truncate text-sm font-medium text-slate-100">{participant.name}</p>
+                  <p className="text-xs text-slate-500">Usuario activo</p>
+                </div>
+                <span className="w-fit rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-emerald-100">active</span>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-slate-100">{participant.name}</p>
-                <p className="text-xs text-slate-500">Usuario activo</p>
-              </div>
-              <span className="w-fit rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-emerald-100">active</span>
             </div>
           </div>
 
