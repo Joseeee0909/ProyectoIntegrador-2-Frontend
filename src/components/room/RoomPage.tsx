@@ -84,6 +84,19 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     setDraft("");
   }, [room?.id, room?.name]);
 
+  const [micActive, setMicActive] = useState(true);
+
+    const handleToggleMic = () => {
+      if (!localVideoRef.current) return;
+      const stream = localVideoRef.current.srcObject as MediaStream | null;
+      if (!stream) return;
+
+      stream.getAudioTracks().forEach((track) => {
+        track.enabled = !track.enabled;
+      });
+      setMicActive((prev) => !prev);
+    };
+
   const { startCall, endCall } = useWebRTC({
     roomId: room?.id ?? "",
     accessToken,
@@ -274,6 +287,8 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
             memberActionLoading={memberActionLoading}
             onToggleCall={handleToggleCall}
             callActive={callActive}
+            onToggleMic={handleToggleMic}   // 👈
+            micActive={micActive}           // 👈
           />
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden xl:flex-row">
@@ -413,7 +428,7 @@ function DashboardSidebar({ user, onBack, onOpenProfile, onSettings, onLogout }:
   );
 }
 
-function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading, onToggleCall, callActive }: {
+function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading, onToggleCall, callActive, onToggleMic, micActive }: {
   room: StudyRoom;
   onBack: () => void;
   onSettings: () => void;
@@ -421,6 +436,8 @@ function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading
   memberActionLoading: boolean;
   onToggleCall: () => void;        // 👈
   callActive: boolean;             // 👈
+  onToggleMic: () => void;         // 👈
+  micActive: boolean;              // 👈
 }) {
   return (
     <header className="flex flex-col gap-4 border-b border-white/10 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:gap-3 xl:px-7">
@@ -445,7 +462,16 @@ function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading
           <LogOut className="h-3.5 w-3.5" /> {memberActionLoading ? "Saliendo..." : "Salir"}
         </button>
         <div className="flex items-center gap-1.5">
-          <button type="button" className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-[#7a7f9a] transition hover:bg-white/10 hover:text-[#c0c4dc]">
+          <button
+            type="button"
+            onClick={onToggleMic}
+            className={`grid h-8 w-8 place-items-center rounded-xl border transition
+              ${micActive
+                ? "border-white/10 bg-white/5 text-[#7a7f9a] hover:bg-white/10 hover:text-[#c0c4dc]"
+                : "border-rose-400/30 bg-rose-400/10 text-rose-300 hover:bg-rose-400/15"
+              }`}
+            title={micActive ? "Silenciar" : "Activar micrófono"}
+          >
             <Mic className="h-4 w-4" />
           </button>
           <button
