@@ -151,6 +151,36 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     avatarSrc: resolveAvatarSrc(user.avatar),
     badge: "active",
   };
+
+  const [participants, setParticipants] = useState<Participant[]>([currentParticipant]);
+
+useEffect(() => {
+  const sock = initSocket(accessToken);
+
+  const handleUserJoined = ({ username }: { userId: string; username: string }) => {
+    setParticipants((prev) => {
+      if (prev.some((p) => p.name === username)) return prev;
+      return [...prev, {
+        name: username,
+        initials: username.slice(0, 2).toUpperCase(),
+        accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
+        badge: "active",
+      }];
+    });
+  };
+
+  const handleUserLeft = ({ username }: { username: string }) => {
+    setParticipants((prev) => prev.filter((p) => p.name !== username));
+  };
+
+  sock.on("user:joined", handleUserJoined);
+  sock.on("user:left", handleUserLeft);
+
+  return () => {
+    sock.off("user:joined", handleUserJoined);
+    sock.off("user:left", handleUserLeft);
+  };
+}, [accessToken]);
   const tokenSubject = getJwtSubject(accessToken);
   const isOwner = Boolean(
     room
@@ -317,7 +347,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
                 setRoomName={setRoomName}
                 loading={loading}
                 onDeleteRoom={confirmDelete}
-                participant={currentParticipant}
+                participants={participants}  
                 roomCode={roomCode}
                 ownerLabel={ownerLabel}
                 deleteLoading={deleteLoading}
@@ -837,10 +867,10 @@ function ChatPane({
   );
 }
 
-function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, roomName, setRoomName, loading, onDeleteRoom: _onDeleteRoom, ownerLabel, deleteLoading, onShowDeleteConfirm }: {
+function RoomSidebar({room, roomCode, participants, isOwner, error, onSubmit, roomName, setRoomName, loading, onDeleteRoom: _onDeleteRoom, ownerLabel, deleteLoading, onShowDeleteConfirm }: {
   room: StudyRoom;
   roomCode: string;
-  participant: Participant;
+  participants: Participant[];
   isOwner: boolean;
   error: string;
   onSubmit: (event: FormEvent) => Promise<void>;
@@ -867,22 +897,37 @@ function RoomSidebar({ room, roomCode, participant, isOwner, error, onSubmit, ro
           </div>
 
           <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Participantes</p>
-            <div className="mt-3 grid gap-3 auto-cols-max" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
-              <div className="flex min-w-0 flex-col items-center rounded-lg border border-white/10 bg-white/5 p-3 gap-2">
-                <div className="grid h-10 w-10 place-items-center rounded-full text-xs font-semibold text-white" style={{ background: participant.accent }}>
-                  {participant.avatarSrc ? (
-                    <img src={participant.avatarSrc} alt={`Avatar de ${participant.name}`} className="h-full w-full rounded-full object-cover" />
-                  ) : (
-                    participant.initials
-                  )}
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+              Participantes ({participants.length})
+            </p>
+            <div
+              className="mt-3 grid gap-3"
+              style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}
+            >
+              {participants.map((p) => (
+                <div
+                  key={p.name}
+                  className="flex min-w-0 flex-col items-center rounded-lg border border-white/10 bg-white/5 p-3 gap-2"
+                >
+                  <div
+                    className="grid h-10 w-10 place-items-center rounded-full text-xs font-semibold text-white"
+                    style={{ background: p.accent }}
+                  >
+                    {p.avatarSrc ? (
+                      <img src={p.avatarSrc} alt={p.name} className="h-full w-full rounded-full object-cover" />
+                    ) : (
+                      p.initials
+                    )}
+                  </div>
+                  <div className="min-w-0 text-center flex-1">
+                    <p className="truncate text-sm font-medium text-slate-100">{p.name}</p>
+                    <p className="text-xs text-slate-500">Usuario activo</p>
+                  </div>
+                  <span className="w-fit rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-emerald-100">
+                    active
+                  </span>
                 </div>
-                <div className="min-w-0 text-center flex-1">
-                  <p className="truncate text-sm font-medium text-slate-100">{participant.name}</p>
-                  <p className="text-xs text-slate-500">Usuario activo</p>
-                </div>
-                <span className="w-fit rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-emerald-100">active</span>
-              </div>
+              ))}
             </div>
           </div>
 
