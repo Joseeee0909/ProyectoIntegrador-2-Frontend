@@ -11,6 +11,8 @@ interface UseWebRTCOptions {
 export function useWebRTC({ roomId, accessToken, onRemoteStream, onLocalStream }: UseWebRTCOptions) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const isNegotiatingRef = useRef(false);
 
   // Store callbacks in refs so they don't cause effect re-runs
   const onRemoteStreamRef = useRef(onRemoteStream);
@@ -21,14 +23,16 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream, onLocalStream }
   const createPC = useCallback(() => {
     // Close existing connection if any
     if (pcRef.current) {
-      pcRef.current.close();
+      try { pcRef.current.close(); } catch (_e) { /* ignore */ }
       pcRef.current = null;
     }
+    pendingCandidatesRef.current = [];
 
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
+        { urls: "stun:stun2.l.google.com:19302" },
       ],
     });
 
@@ -39,27 +43,40 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream, onLocalStream }
     };
 
     pc.ontrack = ({ streams }) => {
+      console.log("[WebRTC] Remote track received");
       if (streams[0]) {
         onRemoteStreamRef.current?.(streams[0]);
       }
     };
 
     pc.onconnectionstatechange = () => {
-      const state = pc.connectionState;
-      console.log("[WebRTC] Connection state:", state);
-      if (state === "failed") {
-        console.warn("[WebRTC] Connection failed, closing peer connection");
-        pc.close();
-      }
+      console.log("[WebRTC] Connection state:", pc.connectionState);
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log("[WebRTC] ICE connection state:", pc.iceConnectionState);
+      console.log("[WebRTC] ICE state:", pc.iceConnectionState);
     };
 
     pcRef.current = pc;
     return pc;
   }, [roomId, accessToken]);
+
+  // Flush buffered ICE candidates once remote description is set
+  const flushCandidates = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc || !pc.remoteDescription) return;
+
+    const candidates = pendingCandidatesRef.current;
+    pendingCandidatesRef.current = [];
+
+    for (const candidate of candidates) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.warn("[WebRTC] Failed to add buffered candidate:", err);
+      }
+    }
+  }, []);
 
   // Get or reuse local media stream
   const getLocalStream = useCallback(async (): Promise<MediaStream> => {
@@ -74,31 +91,16 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream, onLocalStream }
   const startCall = useCallback(async (): Promise<MediaStream> => {
     const localStream = await getLocalStream();
     onLocalStreamRef.current?.(localStream);
-
-    // Don't create offer immediately — wait for another user to join
-    // The offer will be triggered by "user-joined" event
     return localStream;
   }, [getLocalStream]);
 
-  // Create and send offer to a specific peer (triggered when a new user joins)
-  const sendOffer = useCallback(async () => {
-    const localStream = await getLocalStream();
-    const pc = createPC();
-    const sock = initSocket(accessToken);
-
-    localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    sock.emit("webrtc:offer", { roomId, offer });
-    console.log("[WebRTC] Offer sent to room:", roomId);
-  }, [roomId, accessToken, createPC, getLocalStream]);
-
   const endCall = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
-    pcRef.current?.close();
+    try { pcRef.current?.close(); } catch (_e) { /* ignore */ }
     pcRef.current = null;
     localStreamRef.current = null;
+    pendingCandidatesRef.current = [];
+    isNegotiatingRef.current = false;
   }, []);
 
   useEffect(() => {
@@ -106,48 +108,87 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream, onLocalStream }
 
     const sock = initSocket(accessToken);
 
-    // When a new user joins the room, send them an offer
-    const onUserJoined = ({ socketId }: { socketId: string }) => {
-      console.log("[WebRTC] User joined, sending offer to:", socketId);
-      // Only send offer if we have a local stream (i.e., call is active)
-      if (localStreamRef.current && localStreamRef.current.active) {
-        void sendOffer();
+    // When a new user joins, the existing user sends an offer
+    const onUserJoined = async () => {
+      if (!localStreamRef.current || !localStreamRef.current.active) return;
+      if (isNegotiatingRef.current) return; // prevent duplicate offers
+
+      console.log("[WebRTC] New user joined, sending offer...");
+      isNegotiatingRef.current = true;
+
+      try {
+        const localStream = localStreamRef.current;
+        const pc = createPC();
+        localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sock.emit("webrtc:offer", { roomId, offer });
+        console.log("[WebRTC] Offer sent");
+      } catch (err) {
+        console.error("[WebRTC] Error sending offer:", err);
+        isNegotiatingRef.current = false;
       }
     };
 
-    // When we receive an offer, create answer
+    // When we receive an offer, answer it
     const onOffer = async ({ offer }: { offer: RTCSessionDescriptionInit }) => {
-      console.log("[WebRTC] Received offer, creating answer");
+      console.log("[WebRTC] Received offer");
+      isNegotiatingRef.current = true;
 
-      const localStream = await getLocalStream();
-      onLocalStreamRef.current?.(localStream);
+      try {
+        const localStream = await getLocalStream();
+        onLocalStreamRef.current?.(localStream);
 
-      const pc = createPC();
-      localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+        const pc = createPC();
+        localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
 
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      sock.emit("webrtc:answer", { roomId, answer });
-      console.log("[WebRTC] Answer sent");
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+        // Flush any ICE candidates that arrived before remote description was set
+        await flushCandidates();
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        sock.emit("webrtc:answer", { roomId, answer });
+        console.log("[WebRTC] Answer sent");
+      } catch (err) {
+        console.error("[WebRTC] Error answering offer:", err);
+        isNegotiatingRef.current = false;
+      }
     };
 
-    // When we receive an answer, set remote description
+    // When we receive an answer
     const onAnswer = async ({ answer }: { answer: RTCSessionDescriptionInit }) => {
       console.log("[WebRTC] Received answer");
-      if (pcRef.current && pcRef.current.signalingState === "have-local-offer") {
-        await pcRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+      const pc = pcRef.current;
+      if (!pc) return;
+
+      try {
+        if (pc.signalingState === "have-local-offer") {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          // Flush any buffered ICE candidates
+          await flushCandidates();
+        }
+      } catch (err) {
+        console.error("[WebRTC] Error setting answer:", err);
       }
     };
 
-    // Relay ICE candidates
+    // Buffer or apply ICE candidates
     const onIceCandidate = async ({ candidate }: { candidate: RTCIceCandidateInit }) => {
+      const pc = pcRef.current;
+
+      if (!pc || !pc.remoteDescription) {
+        // Buffer the candidate until remote description is set
+        pendingCandidatesRef.current.push(candidate);
+        return;
+      }
+
       try {
-        if (pcRef.current && pcRef.current.remoteDescription) {
-          await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-        }
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (err) {
-        console.warn("[WebRTC] ICE candidate ignored:", err);
+        console.warn("[WebRTC] ICE candidate error:", err);
       }
     };
 
@@ -162,7 +203,7 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream, onLocalStream }
       sock.off("webrtc:answer", onAnswer);
       sock.off("webrtc:ice-candidate", onIceCandidate);
     };
-  }, [roomId, accessToken, createPC, getLocalStream, sendOffer]);
+  }, [roomId, accessToken, createPC, getLocalStream, flushCandidates]);
 
   return { startCall, endCall, localStreamRef };
 }
