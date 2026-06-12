@@ -77,6 +77,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
   const [callActive, setCallActive] = useState(false);
   useEffect(() => {
     setRoomName(room?.name ?? "");
@@ -87,8 +88,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
   const [micActive, setMicActive] = useState(true);
 
     const handleToggleMic = () => {
-      if (!localVideoRef.current) return;
-      const stream = localVideoRef.current.srcObject as MediaStream | null;
+      const stream = localStreamRef.current;
       if (!stream) return;
 
       stream.getAudioTracks().forEach((track) => {
@@ -118,6 +118,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     void (async () => {
       try {
         const localStream = await startCall();
+        localStreamRef.current = localStream;
         if (!cancelled && localVideoRef.current) {
           localVideoRef.current.srcObject = localStream;
         }
@@ -133,7 +134,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
       cancelled = true;
     };
   }, [room?.id]); // se ejecuta una sola vez cuando la sala carga
-
+  
 
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
   const avatarSrc = resolveAvatarSrc(user.avatar);
@@ -245,12 +246,14 @@ useEffect(() => {
   const handleToggleCall = async () => {
     if (callActive) {
       endCall();
+      localStreamRef.current = null;
       if (localVideoRef.current) localVideoRef.current.srcObject = null;
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
       setCallActive(false);
     } else {
       try {
         const localStream = await startCall();
+        localStreamRef.current = localStream;
         if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
         setCallActive(true);
       } catch (err) {
