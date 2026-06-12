@@ -27,6 +27,12 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream, onLocalStream }
       if (streams[0]) onRemoteStream?.(streams[0]);
     };
 
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === "closed" || pc.connectionState === "failed") {
+        pc.close();
+      }
+    };
+
     pcRef.current = pc;
     return pc;
   }, [roomId, accessToken, onRemoteStream]);
@@ -57,6 +63,8 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream, onLocalStream }
     const sock = initSocket(accessToken);
 
     const onOffer = async ({ offer }: { offer: RTCSessionDescriptionInit }) => {
+      if (pcRef.current) return;
+
       const pc = createPC();
 
       const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -92,7 +100,7 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream, onLocalStream }
       sock.off("webrtc:answer", onAnswer);
       sock.off("webrtc:ice-candidate", onIceCandidate);
     };
-  }, [roomId, accessToken, createPC, onLocalStream]);
+  }, [roomId, accessToken, createPC, onLocalStream, onRemoteStream]);
 
   return { startCall, endCall, localStreamRef };
 }

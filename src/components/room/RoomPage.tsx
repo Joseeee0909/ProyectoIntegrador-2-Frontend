@@ -87,15 +87,15 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
 
   const [micActive, setMicActive] = useState(true);
 
-    const handleToggleMic = () => {
-      const stream = localStreamRef.current;
-      if (!stream) return;
+  const handleToggleMic = () => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
 
-      stream.getAudioTracks().forEach((track) => {
-        track.enabled = !track.enabled;
-      });
-      setMicActive((prev) => !prev);
-    };
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = !track.enabled;
+    });
+    setMicActive((prev) => !prev);
+  };
 
   const { startCall, endCall } = useWebRTC({
     roomId: room?.id ?? "",
@@ -106,11 +106,12 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
       }
     },
     onLocalStream: (stream) => {
-      localStreamRef.current = stream; // 👈 agrega esta línea
+      localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
     },
   });
-    // En RoomPage, después de declarar useWebRTC
+
+
   useEffect(() => {
     if (!room?.id) return;
 
@@ -134,7 +135,13 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     return () => {
       cancelled = true;
     };
-  }, [room?.id]); // se ejecuta una sola vez cuando la sala carga
+  }, [room?.id, startCall]);
+  // 👇 Este va inmediatamente después del auto-inicio
+  useEffect(() => {
+    if (callActive && localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+  }, [callActive]);
   
 
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
@@ -157,6 +164,8 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
   const [participants, setParticipants] = useState<Participant[]>([currentParticipant]);
 
 useEffect(() => {
+  if (!room) return;
+
   const sock = initSocket(accessToken);
 
   const handleUserJoined = ({ username }: { userId: string; username: string }) => {
@@ -182,7 +191,7 @@ useEffect(() => {
     sock.off("user:joined", handleUserJoined);
     sock.off("user:left", handleUserLeft);
   };
-}, [accessToken]);
+  }, [room?.id, accessToken]);
   const tokenSubject = getJwtSubject(accessToken);
   const isOwner = Boolean(
     room
@@ -251,12 +260,14 @@ useEffect(() => {
       if (localVideoRef.current) localVideoRef.current.srcObject = null;
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
       setCallActive(false);
+      setMicActive(true);
     } else {
       try {
         const localStream = await startCall();
         localStreamRef.current = localStream;
         if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
         setCallActive(true);
+        setMicActive(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : "No se pudo iniciar la llamada.");
       }
@@ -321,8 +332,8 @@ useEffect(() => {
             memberActionLoading={memberActionLoading}
             onToggleCall={handleToggleCall}
             callActive={callActive}
-            onToggleMic={handleToggleMic}   // 👈
-            micActive={micActive}           // 👈
+            onToggleMic={handleToggleMic}
+            micActive={micActive}
           />
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden xl:flex-row">
@@ -336,9 +347,9 @@ useEffect(() => {
                 userInitials={userInitials || user.username.slice(0, 2).toUpperCase()}
                 avatarSrc={avatarSrc}
                 accessToken={accessToken}
-                callActive={callActive}          // 
-                localVideoRef={localVideoRef}    // 
-                remoteVideoRef={remoteVideoRef}  // 
+                callActive={callActive}
+                localVideoRef={localVideoRef}
+                remoteVideoRef={remoteVideoRef}
               />
             </div>
             <div className="hidden min-h-0 flex-1 flex-col xl:flex">
@@ -468,10 +479,10 @@ function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading
   onSettings: () => void;
   onLeaveRoom: () => void;
   memberActionLoading: boolean;
-  onToggleCall: () => void;        // 👈
-  callActive: boolean;             // 👈
-  onToggleMic: () => void;         // 👈
-  micActive: boolean;              // 👈
+  onToggleCall: () => void;
+  callActive: boolean;
+  onToggleMic: () => void;
+  micActive: boolean;
 }) {
   return (
     <header className="flex flex-col gap-4 border-b border-white/10 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:gap-3 xl:px-7">
@@ -812,19 +823,24 @@ function ChatPane({
       {callActive && (
         <div className="shrink-0 border-t border-white/5 bg-[#0d0f1a] px-4 py-3">
           <div className="flex gap-2">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              muted
-              playsInline
-              className="h-28 w-44 rounded-2xl border border-white/10 bg-black object-cover"
-            />
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="h-28 w-44 rounded-2xl border border-white/10 bg-black object-cover"
-            />
+            <div className="relative h-28 w-44 rounded-2xl border border-white/10 bg-black object-cover">
+              <video
+                ref={localVideoRef}
+                autoPlay
+                muted
+                playsInline
+                className="h-full w-full rounded-2xl object-cover"
+              />
+            </div>
+            <div className="relative h-28 w-44 rounded-2xl border border-white/10 bg-black object-cover">
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                muted
+                playsInline
+                className="h-full w-full rounded-2xl object-cover"
+              />
+            </div>
           </div>
         </div>
       )}
