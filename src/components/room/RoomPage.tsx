@@ -112,6 +112,11 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
   });
 
 
+  const startCallRef = useRef(startCall);
+  useEffect(() => {
+    startCallRef.current = startCall;
+  }, [startCall]);
+
   useEffect(() => {
     if (!room?.id) return;
 
@@ -119,11 +124,8 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
 
     void (async () => {
       try {
-        const localStream = await startCall();
+        const localStream = await startCallRef.current();
         localStreamRef.current = localStream;
-        if (!cancelled && localVideoRef.current) {
-          localVideoRef.current.srcObject = localStream;
-        }
         if (!cancelled) setCallActive(true);
       } catch (err) {
         if (!cancelled) {
@@ -135,10 +137,11 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     return () => {
       cancelled = true;
     };
-  }, [room?.id, startCall]);
+  }, [room?.id]); // sin startCall
   // 👇 Este va inmediatamente después del auto-inicio
   useEffect(() => {
-    if (callActive && localVideoRef.current && localStreamRef.current) {
+    if (!callActive) return;
+    if (localVideoRef.current && localStreamRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
     }
   }, [callActive]);
