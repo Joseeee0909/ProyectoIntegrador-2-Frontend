@@ -92,6 +92,9 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
         remoteVideoRef.current.srcObject = stream;
       }
     },
+    onLocalStream: (stream) => { // 👈 para cuando eres Usuario B
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+    },
   });
 
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();

@@ -5,9 +5,10 @@ interface UseWebRTCOptions {
   roomId: string;
   accessToken: string;
   onRemoteStream?: (stream: MediaStream) => void;
+  onLocalStream?: (stream: MediaStream) => void; // 👈 nuevo
 }
 
-export function useWebRTC({ roomId, accessToken, onRemoteStream }: UseWebRTCOptions) {
+export function useWebRTC({ roomId, accessToken, onRemoteStream, onLocalStream }: UseWebRTCOptions) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
 
@@ -30,7 +31,6 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream }: UseWebRTCOpti
     return pc;
   }, [roomId, accessToken, onRemoteStream]);
 
-  // Usuario A: inicia la llamada
   const startCall = useCallback(async (): Promise<MediaStream> => {
     const pc = createPC();
     const sock = initSocket(accessToken);
@@ -53,11 +53,9 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream }: UseWebRTCOpti
     localStreamRef.current = null;
   }, []);
 
-  // Escucha señalización entrante
   useEffect(() => {
     const sock = initSocket(accessToken);
 
-    // Usuario B: recibe oferta y responde
     const onOffer = async ({ offer }: { offer: RTCSessionDescriptionInit }) => {
       const pc = createPC();
 
@@ -65,18 +63,18 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream }: UseWebRTCOpti
       localStreamRef.current = localStream;
       localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
 
+      onLocalStream?.(localStream); // 👈 expone el stream local de B
+
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       sock.emit("webrtc:answer", { roomId, answer });
     };
 
-    // Usuario A: recibe respuesta
     const onAnswer = async ({ answer }: { answer: RTCSessionDescriptionInit }) => {
       await pcRef.current?.setRemoteDescription(new RTCSessionDescription(answer));
     };
 
-    // Ambos: agregan candidatos ICE del otro
     const onIceCandidate = async ({ candidate }: { candidate: RTCIceCandidateInit }) => {
       try {
         await pcRef.current?.addIceCandidate(new RTCIceCandidate(candidate));
@@ -94,7 +92,7 @@ export function useWebRTC({ roomId, accessToken, onRemoteStream }: UseWebRTCOpti
       sock.off("webrtc:answer", onAnswer);
       sock.off("webrtc:ice-candidate", onIceCandidate);
     };
-  }, [roomId, accessToken, createPC]);
+  }, [roomId, accessToken, createPC, onLocalStream]);
 
   return { startCall, endCall, localStreamRef };
 }
