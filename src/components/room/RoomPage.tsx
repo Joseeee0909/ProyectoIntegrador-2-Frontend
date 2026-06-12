@@ -17,6 +17,7 @@ import {
   Video,
   BookOpen,
 } from "lucide-react";
+import { useWebRTC } from "../../hooks/useWebRTC";
 import type { ReactNode } from "react";
 import type { AuthUser } from "../../auth/types";
 import { resolveAvatarSrc } from "../../auth/avatar";
@@ -74,12 +75,24 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
   const [draft, setDraft] = useState("");
   const [memberActionLoading, setMemberActionLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const [callActive, setCallActive] = useState(false);
   useEffect(() => {
     setRoomName(room?.name ?? "");
     setError("");
     setDraft("");
   }, [room?.id, room?.name]);
+
+  const { startCall, endCall } = useWebRTC({
+    roomId: room?.id ?? "",
+    accessToken,
+    onRemoteStream: (stream: MediaStream) => {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = stream;
+      }
+    },
+  });
 
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
   const avatarSrc = resolveAvatarSrc(user.avatar);
@@ -158,6 +171,23 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     }
   };
 
+  const handleToggleCall = async () => {
+    if (callActive) {
+      endCall();
+      if (localVideoRef.current) localVideoRef.current.srcObject = null;
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+      setCallActive(false);
+    } else {
+      try {
+        const localStream = await startCall();
+        if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+        setCallActive(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudo iniciar la llamada.");
+      }
+    }
+  };
+
   const handleSendMessage = () => {
     setDraft("");
   };
@@ -214,6 +244,8 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
             onSettings={onSettings}
             onLeaveRoom={handleLeaveRoom}
             memberActionLoading={memberActionLoading}
+            onToggleCall={handleToggleCall}
+            callActive={callActive}
           />
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden xl:flex-row">
@@ -227,6 +259,9 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
                 userInitials={userInitials || user.username.slice(0, 2).toUpperCase()}
                 avatarSrc={avatarSrc}
                 accessToken={accessToken}
+                callActive={callActive}          // 
+                localVideoRef={localVideoRef}    // 
+                remoteVideoRef={remoteVideoRef}  // 
               />
             </div>
             <div className="hidden min-h-0 flex-1 flex-col xl:flex">
@@ -350,12 +385,14 @@ function DashboardSidebar({ user, onBack, onOpenProfile, onSettings, onLogout }:
   );
 }
 
-function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading }: {
+function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading, onToggleCall, callActive }: {
   room: StudyRoom;
   onBack: () => void;
   onSettings: () => void;
   onLeaveRoom: () => void;
   memberActionLoading: boolean;
+  onToggleCall: () => void;        // 👈
+  callActive: boolean;             // 👈
 }) {
   return (
     <header className="flex flex-col gap-4 border-b border-white/10 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:gap-3 xl:px-7">
@@ -383,7 +420,15 @@ function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading
           <button type="button" className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-[#7a7f9a] transition hover:bg-white/10 hover:text-[#c0c4dc]">
             <Mic className="h-4 w-4" />
           </button>
-          <button type="button" className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-[#7a7f9a] transition hover:bg-white/10 hover:text-[#c0c4dc]">
+          <button
+            type="button"
+            onClick={onToggleCall}
+            className={`grid h-8 w-8 place-items-center rounded-xl border transition
+              ${callActive
+                ? "border-rose-400/30 bg-rose-400/10 text-rose-300 hover:bg-rose-400/15"
+                : "border-white/10 bg-white/5 text-[#7a7f9a] hover:bg-white/10 hover:text-[#c0c4dc]"
+              }`}
+          >
             <Video className="h-4 w-4" />
           </button>
           <button type="button" className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-[#7a7f9a] transition hover:bg-white/10 hover:text-[#c0c4dc]">
@@ -407,6 +452,9 @@ function ChatPane({
   userInitials,
   avatarSrc,
   accessToken,
+  callActive,
+  localVideoRef,
+  remoteVideoRef
 }: {
   room: StudyRoom;
   user: AuthUser;
@@ -416,6 +464,9 @@ function ChatPane({
   userInitials: string;
   avatarSrc: string | null;
   accessToken: string;
+  callActive: boolean;
+  localVideoRef: React.RefObject<HTMLVideoElement | null>;
+  remoteVideoRef: React.RefObject<HTMLVideoElement | null>;
 }) {
   const PAGE_SIZE = 30;
   const todayLabel = useMemo(() => getDisplayDate(new Date()), []);
@@ -667,6 +718,26 @@ function ChatPane({
           </div>
         )}
       </div>
+
+      {callActive && (
+        <div className="shrink-0 border-t border-white/5 bg-[#0d0f1a] px-4 py-3">
+          <div className="flex gap-2">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              playsInline
+              className="h-28 w-44 rounded-2xl border border-white/10 bg-black object-cover"
+            />
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="h-28 w-44 rounded-2xl border border-white/10 bg-black object-cover"
+            />
+          </div>
+        </div>
+      )}
 
       <footer className="shrink-0 border-t border-white/5 bg-[#0d0f1a] px-3 py-3 sm:px-5 sm:py-4">
         <div className="mb-2 flex flex-wrap gap-2 sm:mb-3">
