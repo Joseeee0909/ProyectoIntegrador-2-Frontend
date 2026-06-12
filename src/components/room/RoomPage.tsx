@@ -105,7 +105,8 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
         remoteVideoRef.current.srcObject = stream;
       }
     },
-    onLocalStream: (stream) => { // 👈 para cuando eres Usuario B
+    onLocalStream: (stream) => {
+      localStreamRef.current = stream; // 👈 agrega esta línea
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
     },
   });
