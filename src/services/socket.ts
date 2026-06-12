@@ -34,9 +34,9 @@ export function disconnectSocket() {
   socket = null;
 }
 
-export function joinRoom(roomId: string) {
+export function joinRoom(roomId: string, username?: string) {
   if (!socket) return;
-  socket.emit("join-room", roomId);
+  socket.emit("join-room", { roomId, username: username || "Anónimo" });
 }
 
 export function leaveSocketRoom(roomId: string) {

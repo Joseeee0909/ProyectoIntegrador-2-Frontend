@@ -186,25 +186,24 @@ useEffect(() => {
   const sock = initSocket(accessToken);
 
   // Listen for the full participants list from the server
-  const handleParticipants = ({ participants: socketIds }: { roomId: string; participants: string[] }) => {
-    // Keep the current user always, add placeholders for others
-    const others: Participant[] = socketIds
-      .filter((_id) => _id !== sock.id)
-      .map(() => ({
-        name: `Participante`,
-        initials: "P",
+  const handleParticipants = ({ participants: userList }: { roomId: string; participants: { socketId: string; username: string }[] }) => {
+    const others: Participant[] = userList
+      .filter((u) => u.socketId !== sock.id)
+      .map((u) => ({
+        name: u.username,
+        initials: u.username.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?",
         accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
         badge: "active",
       }));
     setParticipants([currentParticipant, ...others]);
   };
 
-  const handleUserJoined = (_data: { socketId: string }) => {
+  const handleUserJoined = (_data: { socketId: string; username: string }) => {
     setParticipants((prev) => {
-      const count = prev.length;
+      if (prev.some((p) => p.name === _data.username)) return prev;
       return [...prev, {
-        name: `Participante ${count}`,
-        initials: `P${count}`,
+        name: _data.username,
+        initials: _data.username.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?",
         accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
         badge: "active",
       }];
@@ -744,7 +743,7 @@ function ChatPane({
     const sock = initSocket(accessToken);
 
     const handleConnect = () => {
-      joinSocketRoom(room.id);
+      joinSocketRoom(room.id, displayName || user.username);
     };
 
     // If already connected, join immediately
