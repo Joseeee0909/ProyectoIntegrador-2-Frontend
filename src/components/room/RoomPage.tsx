@@ -189,8 +189,8 @@ useEffect(() => {
   const handleParticipants = ({ participants: socketIds }: { roomId: string; participants: string[] }) => {
     // Keep the current user always, add placeholders for others
     const others: Participant[] = socketIds
-      .filter((id) => id !== sock.id)
-      .map((id) => ({
+      .filter((_id) => _id !== sock.id)
+      .map(() => ({
         name: `Participante`,
         initials: "P",
         accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
@@ -199,9 +199,8 @@ useEffect(() => {
     setParticipants([currentParticipant, ...others]);
   };
 
-  const handleUserJoined = ({ socketId }: { socketId: string }) => {
+  const handleUserJoined = (_data: { socketId: string }) => {
     setParticipants((prev) => {
-      // Avoid duplicates — check by socket or just add a generic participant
       const count = prev.length;
       return [...prev, {
         name: `Participante ${count}`,
