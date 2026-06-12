@@ -96,6 +96,31 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
     },
   });
+    // En RoomPage, después de declarar useWebRTC
+  useEffect(() => {
+    if (!room?.id) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const localStream = await startCall();
+        if (!cancelled && localVideoRef.current) {
+          localVideoRef.current.srcObject = localStream;
+        }
+        if (!cancelled) setCallActive(true);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "No se pudo acceder a cámara y micrófono.");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [room?.id]); // se ejecuta una sola vez cuando la sala carga
+
 
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
   const avatarSrc = resolveAvatarSrc(user.avatar);
@@ -424,23 +449,25 @@ function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading
             <Mic className="h-4 w-4" />
           </button>
           <button
-            type="button"
-            onClick={onToggleCall}
-            className={`grid h-8 w-8 place-items-center rounded-xl border transition
-              ${callActive
-                ? "border-rose-400/30 bg-rose-400/10 text-rose-300 hover:bg-rose-400/15"
-                : "border-white/10 bg-white/5 text-[#7a7f9a] hover:bg-white/10 hover:text-[#c0c4dc]"
-              }`}
-          >
-            <Video className="h-4 w-4" />
-          </button>
-          <button type="button" className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-[#7a7f9a] transition hover:bg-white/10 hover:text-[#c0c4dc]">
-            <ScreenShare className="h-4 w-4" />
-          </button>
-          <button type="button" className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-[#7a7f9a] transition hover:bg-white/10 hover:text-[#c0c4dc]">
-            <MoreVertical className="h-4 w-4" />
-          </button>
-        </div>
+              type="button"
+              onClick={onToggleCall}
+              className={`grid h-8 w-8 place-items-center rounded-xl border transition
+                ${callActive
+                  ? "border-rose-400/30 bg-rose-400/10 text-rose-300 hover:bg-rose-400/15"
+                  : "border-white/10 bg-white/5 text-[#7a7f9a] hover:bg-white/10 hover:text-[#c0c4dc]"
+                }`}
+              title={callActive ? "Colgar" : "Iniciar videollamada"}
+            >
+              <Video className="h-4 w-4" />
+            </button>
+
+            <button type="button" className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-[#7a7f9a] transition hover:bg-white/10 hover:text-[#c0c4dc]">
+              <ScreenShare className="h-4 w-4" />
+            </button>
+            <button type="button" className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-[#7a7f9a] transition hover:bg-white/10 hover:text-[#c0c4dc]">
+              <MoreVertical className="h-4 w-4" />
+            </button>
+          </div>
       </div>
     </header>
   );
