@@ -185,28 +185,45 @@ useEffect(() => {
 
   const sock = initSocket(accessToken);
 
-  const handleUserJoined = ({ username }: { userId: string; username: string }) => {
+  // Listen for the full participants list from the server
+  const handleParticipants = ({ participants: socketIds }: { roomId: string; participants: string[] }) => {
+    // Keep the current user always, add placeholders for others
+    const others: Participant[] = socketIds
+      .filter((id) => id !== sock.id)
+      .map((id) => ({
+        name: `Participante`,
+        initials: "P",
+        accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
+        badge: "active",
+      }));
+    setParticipants([currentParticipant, ...others]);
+  };
+
+  const handleUserJoined = ({ socketId }: { socketId: string }) => {
     setParticipants((prev) => {
-      if (prev.some((p) => p.name === username)) return prev;
+      // Avoid duplicates — check by socket or just add a generic participant
+      const count = prev.length;
       return [...prev, {
-        name: username,
-        initials: username.slice(0, 2).toUpperCase(),
+        name: `Participante ${count}`,
+        initials: `P${count}`,
         accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
         badge: "active",
       }];
     });
   };
 
-  const handleUserLeft = ({ username }: { username: string }) => {
-    setParticipants((prev) => prev.filter((p) => p.name !== username));
+  const handleUserLeft = () => {
+    // On user-left, just rely on room:participants to get the accurate list
   };
 
-  sock.on("user:joined", handleUserJoined);
-  sock.on("user:left", handleUserLeft);
+  sock.on("room:participants", handleParticipants);
+  sock.on("user-joined", handleUserJoined);
+  sock.on("user-left", handleUserLeft);
 
   return () => {
-    sock.off("user:joined", handleUserJoined);
-    sock.off("user:left", handleUserLeft);
+    sock.off("room:participants", handleParticipants);
+    sock.off("user-joined", handleUserJoined);
+    sock.off("user-left", handleUserLeft);
   };
   }, [room?.id, accessToken]);
   const tokenSubject = getJwtSubject(accessToken);
@@ -965,7 +982,7 @@ function RoomSidebar({room, roomCode, participants, isOwner, error, onSubmit, ro
                   className="flex min-w-0 flex-col items-center rounded-lg border border-white/10 bg-white/5 p-3 gap-2"
                 >
                   <div
-                    className="grid h-10 w-10 place-items-center rounded-full text-xs font-semibold text-white"
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xs font-semibold text-white"
                     style={{ background: p.accent }}
                   >
                     {p.avatarSrc ? (
@@ -974,8 +991,8 @@ function RoomSidebar({room, roomCode, participants, isOwner, error, onSubmit, ro
                       p.initials
                     )}
                   </div>
-                  <div className="min-w-0 text-center flex-1">
-                    <p className="truncate text-sm font-medium text-slate-100">{p.name}</p>
+                  <div className="min-w-0 w-full text-center flex-1">
+                    <p className="truncate text-sm font-medium text-slate-100" title={p.name}>{p.name}</p>
                     <p className="text-xs text-slate-500">Usuario activo</p>
                   </div>
                   <span className="w-fit rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-emerald-100">
