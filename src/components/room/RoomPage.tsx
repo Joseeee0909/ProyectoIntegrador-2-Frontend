@@ -77,9 +77,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
   const [draft, setDraft] = useState("");
   const [memberActionLoading, setMemberActionLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
   const [callActive, setCallActive] = useState(false);
   useEffect(() => {
     setRoomName(room?.name ?? "");
@@ -99,18 +97,9 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     setMicActive((prev) => !prev);
   };
 
-  const { startCall, endCall } = useWebRTC({
+  const { startCall, endCall, localStream: localStreamState, localStreamRef, remoteStreams } = useWebRTC({
     roomId: room?.id ?? "",
     accessToken,
-    onRemoteStream: (stream: MediaStream) => {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream;
-      }
-    },
-    onLocalStream: (stream) => {
-      localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-    },
   });
 
 
@@ -138,8 +127,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
 
     void (async () => {
       try {
-        const localStream = await startCallRef.current();
-        localStreamRef.current = localStream;
+        await startCallRef.current();
         if (!cancelled) setCallActive(true);
       } catch (err) {
         if (!cancelled) {
@@ -151,14 +139,15 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     return () => {
       cancelled = true;
     };
-  }, [room?.id]); // sin startCall
-  // 👇 Este va inmediatamente después del auto-inicio
+  }, [room?.id]);
+
+  // Assign local stream to video element
   useEffect(() => {
     if (!callActive) return;
     if (localVideoRef.current && localStreamRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
     }
-  }, [callActive]);
+  }, [callActive, localStreamState]);
   
 
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
@@ -288,17 +277,14 @@ useEffect(() => {
   const handleToggleCall = async () => {
     if (callActive) {
       endCall();
-      localStreamRef.current = null;
       if (localVideoRef.current) localVideoRef.current.srcObject = null;
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
       setCallActive(false);
       setMicActive(true);
       setCameraActive(true);
     } else {
       try {
-        const localStream = await startCall();
-        localStreamRef.current = localStream;
-        if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+        const stream = await startCall();
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
         setCallActive(true);
         setMicActive(true);
         setCameraActive(true);
@@ -385,7 +371,7 @@ useEffect(() => {
                 accessToken={accessToken}
                 callActive={callActive}
                 localVideoRef={localVideoRef}
-                remoteVideoRef={remoteVideoRef}
+                remoteStreams={remoteStreams}
               />
             </div>
             <div className="hidden min-h-0 flex-1 flex-col xl:flex">
@@ -605,7 +591,7 @@ function ChatPane({
   accessToken,
   callActive,
   localVideoRef,
-  remoteVideoRef
+  remoteStreams
 }: {
   room: StudyRoom;
   user: AuthUser;
@@ -617,7 +603,7 @@ function ChatPane({
   accessToken: string;
   callActive: boolean;
   localVideoRef: React.RefObject<HTMLVideoElement | null>;
-  remoteVideoRef: React.RefObject<HTMLVideoElement | null>;
+  remoteStreams: Map<string, MediaStream>;
 }) {
   const PAGE_SIZE = 30;
   const todayLabel = useMemo(() => getDisplayDate(new Date()), []);
@@ -872,8 +858,9 @@ function ChatPane({
 
       {callActive && (
         <div className="shrink-0 border-t border-white/5 bg-[#0d0f1a] px-4 py-3">
-          <div className="flex gap-2">
-            <div className="relative h-28 w-44 rounded-2xl border border-white/10 bg-black object-cover">
+          <div className="flex flex-wrap gap-2">
+            {/* Local video */}
+            <div className="relative h-28 w-36 rounded-2xl border border-violet-400/30 bg-black">
               <video
                 ref={localVideoRef}
                 autoPlay
@@ -881,15 +868,12 @@ function ChatPane({
                 playsInline
                 className="h-full w-full rounded-2xl object-cover"
               />
+              <span className="absolute bottom-1 left-2 text-[10px] text-white/70">Tú</span>
             </div>
-            <div className="relative h-28 w-44 rounded-2xl border border-white/10 bg-black object-cover">
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                className="h-full w-full rounded-2xl object-cover"
-              />
-            </div>
+            {/* Remote videos — one per peer */}
+            {Array.from(remoteStreams.entries()).map(([peerId, stream]) => (
+              <RemoteVideo key={peerId} stream={stream} peerId={peerId} />
+            ))}
           </div>
         </div>
       )}
@@ -1033,6 +1017,28 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <div className="mb-3 text-[10px] font-medium uppercase tracking-[0.6px] text-[#3a3f5a]">{title}</div>
       {children}
     </section>
+  );
+}
+
+function RemoteVideo({ stream, peerId }: { stream: MediaStream; peerId: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  return (
+    <div className="relative h-28 w-36 rounded-2xl border border-white/10 bg-black">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        className="h-full w-full rounded-2xl object-cover"
+      />
+      <span className="absolute bottom-1 left-2 text-[10px] text-white/70">{peerId.slice(0, 6)}</span>
+    </div>
   );
 }
 
