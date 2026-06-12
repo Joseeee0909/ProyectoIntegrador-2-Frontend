@@ -973,10 +973,10 @@ function RoomSidebar({room, roomCode, participants, isOwner, error, onSubmit, ro
               {participants.map((p) => (
                 <div
                   key={p.name}
-                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2"
+                  className="flex items-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-white/5 px-3 py-2"
                 >
                   <div
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[10px] font-semibold text-white"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-semibold text-white"
                     style={{ background: p.accent }}
                   >
                     {p.avatarSrc ? (
@@ -985,10 +985,8 @@ function RoomSidebar({room, roomCode, participants, isOwner, error, onSubmit, ro
                       p.initials
                     )}
                   </div>
-                  <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-100" title={p.name}>{p.name}</p>
-                  <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-emerald-100">
-                    active
-                  </span>
+                  <p className="min-w-0 flex-1 truncate text-xs font-medium text-slate-100" title={p.name}>{p.name}</p>
+                  <span className="shrink-0 h-2 w-2 rounded-full bg-emerald-400" title="Activo" />
                 </div>
               ))}
             </div>
