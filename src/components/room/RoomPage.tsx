@@ -87,6 +87,22 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
 
   const [micActive, setMicActive] = useState(true);
 
+  const handleToggleScreenShare = async () => {
+    try {
+      if (isScreenSharing) {
+        await stopScreenShare();
+      } else {
+        await startScreenShare();
+      }
+    } catch (err) {
+      // NotAllowedError = usuario canceló el picker, no es un error real
+      if (err instanceof Error && err.name !== "NotAllowedError") {
+        setError(err.message);
+      }
+    }
+  };
+
+
   const handleToggleMic = () => {
     const stream = localStreamRef.current;
     if (!stream) return;
@@ -97,7 +113,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     setMicActive((prev) => !prev);
   };
 
-  const { startCall, endCall, localStream: localStreamState, localStreamRef, remoteStreams } = useWebRTC({
+  const { startCall, endCall, localStream: localStreamState, startScreenShare, stopScreenShare, isScreenSharing, localStreamRef, remoteStreams } = useWebRTC({
     roomId: room?.id ?? "",
     accessToken,
   });
@@ -198,6 +214,8 @@ useEffect(() => {
       }];
     });
   };
+
+  
 
   const handleUserLeft = () => {
     // On user-left, just rely on room:participants to get the accurate list
@@ -352,6 +370,8 @@ useEffect(() => {
             memberActionLoading={memberActionLoading}
             onToggleCall={handleToggleCall}
             callActive={callActive}
+            onScreenShare={handleToggleScreenShare}
+            isScreenSharing={isScreenSharing}
             onToggleCamera={handleToggleCamera}   // 👈
             cameraActive={cameraActive}           // 👈
             onToggleMic={handleToggleMic}         // 👈
@@ -495,7 +515,7 @@ function DashboardSidebar({ user, onBack, onOpenProfile, onSettings, onLogout }:
   );
 }
 
-function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading, onToggleCall, callActive, onToggleMic, micActive , onToggleCamera, cameraActive }: {
+function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading, onToggleCall, callActive, onToggleMic, micActive , onToggleCamera, cameraActive, onScreenShare, isScreenSharing }: {
   room: StudyRoom;
   onBack: () => void;
   onSettings: () => void;
@@ -507,6 +527,8 @@ function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading
   micActive: boolean;
   onToggleCamera: () => void;
   cameraActive: boolean;
+  onScreenShare: () => void;
+  isScreenSharing: boolean;
 }) {
   return (
     <header className="flex flex-col gap-4 border-b border-white/10 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:gap-3 xl:px-7">
@@ -568,7 +590,16 @@ function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading
             <PhoneOff className="h-4 w-4" />
           </button>
 
-          <button type="button" className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-[#7a7f9a] transition hover:bg-white/10 hover:text-[#c0c4dc]">
+          <button
+            type="button"
+            onClick={onScreenShare}
+            className={`grid h-8 w-8 place-items-center rounded-xl border transition
+              ${isScreenSharing
+                ? "border-green-400/30 bg-green-400/10 text-green-300 hover:bg-green-400/15"
+                : "border-white/10 bg-white/5 text-[#7a7f9a] hover:bg-white/10 hover:text-[#c0c4dc]"
+              }`}
+            title={isScreenSharing ? "Dejar de compartir pantalla" : "Compartir pantalla"}
+          >
             <ScreenShare className="h-4 w-4" />
           </button>
           <button type="button" className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-[#7a7f9a] transition hover:bg-white/10 hover:text-[#c0c4dc]">

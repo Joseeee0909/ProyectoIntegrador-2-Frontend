@@ -17,6 +17,8 @@ export function useWebRTC({ roomId, accessToken }: UseWebRTCOptions) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const ICE_SERVERS: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
@@ -88,6 +90,76 @@ export function useWebRTC({ roomId, accessToken }: UseWebRTCOptions) {
       }
     }
   }, []);
+
+  const startScreenShare = useCallback(async () => {
+  const screenStream = await navigator.mediaDevices.getDisplayMedia({
+    video: true,
+    audio: true,
+  });
+
+  screenStreamRef.current = screenStream;
+  const screenTrack = screenStream.getVideoTracks()[0];
+
+  // Reemplazar el video track en todos los peers activos
+  for (const { pc } of peersRef.current.values()) {
+    const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+    if (sender) await sender.replaceTrack(screenTrack);
+  }
+
+  // Actualizar el stream local para que el preview también cambie
+  if (localStreamRef.current) {
+    const oldTrack = localStreamRef.current.getVideoTracks()[0];
+    if (oldTrack) {
+      localStreamRef.current.removeTrack(oldTrack);
+      oldTrack.stop();
+    }
+    localStreamRef.current.addTrack(screenTrack);
+  }
+
+  setIsScreenSharing(true);
+  setLocalStream(localStreamRef.current ? new MediaStream(localStreamRef.current.getTracks()) : null);
+
+  // Restaurar cámara automáticamente si el usuario cierra el picker del SO
+  screenTrack.addEventListener("ended", () => {
+    void stopScreenShare();
+  }, { once: true });
+}, []);
+
+const stopScreenShare = useCallback(async () => {
+  // Detener los tracks de pantalla
+  screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+  screenStreamRef.current = null;
+
+  // Re-adquirir la cámara
+  let camStream: MediaStream;
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  } catch {
+    setIsScreenSharing(false);
+    return;
+  }
+
+  const newCamTrack = camStream.getVideoTracks()[0];
+
+  // Reemplazar en todos los peers
+  for (const { pc } of peersRef.current.values()) {
+    const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+    if (sender) await sender.replaceTrack(newCamTrack);
+  }
+
+  // Actualizar el stream local
+  if (localStreamRef.current) {
+    const oldTrack = localStreamRef.current.getVideoTracks()[0];
+    if (oldTrack) {
+      localStreamRef.current.removeTrack(oldTrack);
+      oldTrack.stop();
+    }
+    localStreamRef.current.addTrack(newCamTrack);
+    setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+  }
+
+  setIsScreenSharing(false);
+}, []);
 
   // Get or create local stream
   const getLocalStream = useCallback(async (): Promise<MediaStream> => {
@@ -224,5 +296,5 @@ export function useWebRTC({ roomId, accessToken }: UseWebRTCOptions) {
     };
   }, [roomId, accessToken, createPeer, getLocalStream, flushCandidates, updateRemoteStreams]);
 
-  return { startCall, endCall, localStream, localStreamRef, remoteStreams };
+  return { startCall, endCall, localStream, localStreamRef, remoteStreams, startScreenShare, stopScreenShare, isScreenSharing };
 }
