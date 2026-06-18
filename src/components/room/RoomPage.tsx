@@ -386,7 +386,6 @@ useEffect(() => {
             <div className="flex min-h-0 flex-1 flex-col xl:flex">
               {mediaMode ? (
                 <MediaPane
-                  room={room}
                   user={user}
                   participants={participants}
                   callActive={callActive}
@@ -411,23 +410,25 @@ useEffect(() => {
                 />
               )}
             </div>
-            <div className="hidden min-h-0 flex-1 flex-col xl:flex">
-              <RoomSidebar
-                room={room}
-                isOwner={isOwner}
-                error={error}
-                onSubmit={handleSubmit}
-                roomName={roomName}
-                setRoomName={setRoomName}
-                loading={loading}
-                onDeleteRoom={confirmDelete}
-                participants={participants}  
-                roomCode={roomCode}
-                ownerLabel={ownerLabel}
-                deleteLoading={deleteLoading}
-                onShowDeleteConfirm={handleDelete}
-              />
-            </div>
+            {!mediaMode && (
+              <div className="hidden min-h-0 flex-1 flex-col xl:flex">
+                <RoomSidebar
+                  room={room}
+                  isOwner={isOwner}
+                  error={error}
+                  onSubmit={handleSubmit}
+                  roomName={roomName}
+                  setRoomName={setRoomName}
+                  loading={loading}
+                  onDeleteRoom={confirmDelete}
+                  participants={participants}  
+                  roomCode={roomCode}
+                  ownerLabel={ownerLabel}
+                  deleteLoading={deleteLoading}
+                  onShowDeleteConfirm={handleDelete}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -935,7 +936,7 @@ function ChatPane({
                 autoPlay
                 muted
                 playsInline
-                className="h-full w-full rounded-2xl object-cover"
+      className="h-full w-full rounded-2xl object-contain"
               />
               <span className="absolute bottom-1 left-2 text-[10px] text-white/70">Tú</span>
             </div>
@@ -989,8 +990,7 @@ function ChatPane({
   );
 }
 
-function MediaPane({ room, user, participants, callActive, localStream, remoteStreams, isScreenSharing }: {
-  room: StudyRoom;
+function MediaPane({ user, participants, callActive, localStream, remoteStreams, isScreenSharing }: {
   user: AuthUser;
   participants: Participant[];
   callActive: boolean;
@@ -1013,7 +1013,7 @@ function MediaPane({ room, user, participants, callActive, localStream, remoteSt
       <div className="flex flex-col gap-3 border-b border-white/5 bg-[#0d0f1a] px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-[Syne,system-ui] text-base font-bold text-white">{room.name}</p>
+            <p className="font-[Syne,system-ui] text-base font-bold text-white">Vista de medios</p>
             <p className="mt-1 text-xs text-slate-400">Cámara, pantalla compartida y audio sin mensajes.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1025,9 +1025,9 @@ function MediaPane({ room, user, participants, callActive, localStream, remoteSt
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 sm:p-5">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-x-auto overflow-y-hidden p-3 sm:p-5">
         {!callActive ? (
-          <div className="grid min-h-[420px] place-items-center rounded-[1.75rem] border border-dashed border-white/10 bg-white/5 px-6 text-center">
+          <div className="grid h-[420px] w-[640px] max-w-full place-items-center rounded-[1.75rem] border border-dashed border-white/10 bg-white/5 px-6 text-center">
             <div>
               <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white/5 text-slate-300">
                 <Video className="h-7 w-7" />
@@ -1037,14 +1037,14 @@ function MediaPane({ room, user, participants, callActive, localStream, remoteSt
             </div>
           </div>
         ) : (
-          <div className={`grid min-h-[420px] flex-1 gap-4 ${remoteEntries.length === 0 ? "place-items-center" : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"}`}>
-            <MediaTile label="Tú" subtitle={isScreenSharing ? "Pantalla compartida" : displayName || user.username}>
-              <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+          <div className="flex min-w-0 items-center justify-center gap-4">
+            <MediaTile label="Tú" subtitle={isScreenSharing ? "Pantalla compartida" : displayName || user.username} className="h-[360px] w-[640px] max-w-full shrink-0">
+              <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full rounded-2xl object-contain" />
             </MediaTile>
 
             {remoteEntries.length === 0 && (
-              <MediaTile label="Esperando participantes" subtitle="El audio y video aparecerán aquí cuando alguien se conecte." className="md:col-span-2 xl:col-span-3">
-                <div className="grid h-full min-h-[220px] place-items-center p-6 text-center text-slate-400">
+              <MediaTile label="Esperando participantes" subtitle="El audio y video aparecerán aquí cuando alguien se conecte." className="h-[360px] w-[640px] max-w-full shrink-0">
+                <div className="grid h-full place-items-center p-6 text-center text-slate-400">
                   <div>
                     <Video className="mx-auto h-10 w-10 text-slate-500" />
                     <p className="mt-4 text-sm">No hay streams remotos activos.</p>
@@ -1054,7 +1054,7 @@ function MediaPane({ room, user, participants, callActive, localStream, remoteSt
             )}
 
             {remoteEntries.map(([peerId, stream]) => (
-              <MediaTile key={peerId} label={`Participante ${peerId.slice(0, 6)}`} subtitle="Cámara, pantalla compartida y audio">
+              <MediaTile key={peerId} label={`Participante ${peerId.slice(0, 6)}`} subtitle="Cámara, pantalla compartida y audio" className="h-[360px] w-[640px] max-w-full shrink-0">
                 <RemoteVideoContent stream={stream} />
               </MediaTile>
             ))}
