@@ -79,10 +79,12 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const [callActive, setCallActive] = useState(false);
+  const [mediaMode, setMediaMode] = useState(false);
   useEffect(() => {
     setRoomName(room?.name ?? "");
     setError("");
     setDraft("");
+    setMediaMode(false);
   }, [room?.id, room?.name]);
 
   const [micActive, setMicActive] = useState(true);
@@ -370,6 +372,8 @@ useEffect(() => {
             memberActionLoading={memberActionLoading}
             onToggleCall={handleToggleCall}
             callActive={callActive}
+            mediaMode={mediaMode}
+            onToggleMediaMode={() => setMediaMode((value) => !value)}
             onScreenShare={handleToggleScreenShare}
             isScreenSharing={isScreenSharing}
             onToggleCamera={handleToggleCamera}   // 👈
@@ -380,19 +384,32 @@ useEffect(() => {
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden xl:flex-row">
             <div className="flex min-h-0 flex-1 flex-col xl:flex">
-              <ChatPane
-                room={room}
-                user={user}
-                draft={draft}
-                onDraftChange={setDraft}
-                onSendMessage={handleSendMessage}
-                userInitials={userInitials || user.username.slice(0, 2).toUpperCase()}
-                avatarSrc={avatarSrc}
-                accessToken={accessToken}
-                callActive={callActive}
-                localVideoRef={localVideoRef}
-                remoteStreams={remoteStreams}
-              />
+              {mediaMode ? (
+                <MediaPane
+                  room={room}
+                  user={user}
+                  participants={participants}
+                  callActive={callActive}
+                  localStream={localStreamState}
+                  remoteStreams={remoteStreams}
+                  isScreenSharing={isScreenSharing}
+                />
+              ) : (
+                <ChatPane
+                  room={room}
+                  user={user}
+                  draft={draft}
+                  onDraftChange={setDraft}
+                  onSendMessage={handleSendMessage}
+                  userInitials={userInitials || user.username.slice(0, 2).toUpperCase()}
+                  avatarSrc={avatarSrc}
+                  accessToken={accessToken}
+                  callActive={callActive}
+                  localStream={localStreamState}
+                  localVideoRef={localVideoRef}
+                  remoteStreams={remoteStreams}
+                />
+              )}
             </div>
             <div className="hidden min-h-0 flex-1 flex-col xl:flex">
               <RoomSidebar
@@ -515,7 +532,7 @@ function DashboardSidebar({ user, onBack, onOpenProfile, onSettings, onLogout }:
   );
 }
 
-function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading, onToggleCall, callActive, onToggleMic, micActive , onToggleCamera, cameraActive, onScreenShare, isScreenSharing }: {
+function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading, onToggleCall, callActive, onToggleMic, micActive , onToggleCamera, cameraActive, onScreenShare, isScreenSharing, mediaMode, onToggleMediaMode }: {
   room: StudyRoom;
   onBack: () => void;
   onSettings: () => void;
@@ -529,6 +546,8 @@ function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading
   cameraActive: boolean;
   onScreenShare: () => void;
   isScreenSharing: boolean;
+  mediaMode: boolean;
+  onToggleMediaMode: () => void;
 }) {
   return (
     <header className="flex flex-col gap-4 border-b border-white/10 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:gap-3 xl:px-7">
@@ -548,6 +567,17 @@ function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading
         </button>
         <button type="button" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 transition hover:bg-white/10" onClick={onSettings}>
           <Settings className="h-3.5 w-3.5" /> Ajustes
+        </button>
+        <button
+          type="button"
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition
+            ${mediaMode
+              ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"
+              : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+            }`}
+          onClick={onToggleMediaMode}
+        >
+          <Video className="h-3.5 w-3.5" /> {mediaMode ? "Volver al chat" : "Vista de medios"}
         </button>
         <button type="button" className="inline-flex items-center gap-2 rounded-full border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-progress disabled:opacity-60" onClick={onLeaveRoom} disabled={memberActionLoading}>
           <LogOut className="h-3.5 w-3.5" /> {memberActionLoading ? "Saliendo..." : "Salir"}
@@ -621,6 +651,7 @@ function ChatPane({
   avatarSrc,
   accessToken,
   callActive,
+  localStream,
   localVideoRef,
   remoteStreams
 }: {
@@ -633,6 +664,7 @@ function ChatPane({
   avatarSrc: string | null;
   accessToken: string;
   callActive: boolean;
+  localStream: MediaStream | null;
   localVideoRef: React.RefObject<HTMLVideoElement | null>;
   remoteStreams: Map<string, MediaStream>;
 }) {
@@ -647,6 +679,12 @@ function ChatPane({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream, localVideoRef]);
 
   // Auto-scroll to bottom only for new messages (not when loading older)
   const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
@@ -948,6 +986,118 @@ function ChatPane({
         </div>
       </footer>
     </section>
+  );
+}
+
+function MediaPane({ room, user, participants, callActive, localStream, remoteStreams, isScreenSharing }: {
+  room: StudyRoom;
+  user: AuthUser;
+  participants: Participant[];
+  callActive: boolean;
+  localStream: MediaStream | null;
+  remoteStreams: Map<string, MediaStream>;
+  isScreenSharing: boolean;
+}) {
+  const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteEntries = useMemo(() => Array.from(remoteStreams.entries()), [remoteStreams]);
+
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
+
+  return (
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-white/5 bg-[#0d0f1a] px-4 py-3 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-[Syne,system-ui] text-base font-bold text-white">{room.name}</p>
+            <p className="mt-1 text-xs text-slate-400">Cámara, pantalla compartida y audio sin mensajes.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-100">Participantes {participants.length}</span>
+            {isScreenSharing && (
+              <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-100">Compartiendo pantalla</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 sm:p-5">
+        {!callActive ? (
+          <div className="grid min-h-[420px] place-items-center rounded-[1.75rem] border border-dashed border-white/10 bg-white/5 px-6 text-center">
+            <div>
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white/5 text-slate-300">
+                <Video className="h-7 w-7" />
+              </div>
+              <h2 className="mt-5 text-2xl font-semibold tracking-tight text-slate-100">La llamada está apagada</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-400">Activa la llamada desde el botón del teléfono para ver y escuchar a los participantes.</p>
+            </div>
+          </div>
+        ) : (
+          <div className={`grid min-h-[420px] flex-1 gap-4 ${remoteEntries.length === 0 ? "place-items-center" : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"}`}>
+            <MediaTile label="Tú" subtitle={isScreenSharing ? "Pantalla compartida" : displayName || user.username}>
+              <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+            </MediaTile>
+
+            {remoteEntries.length === 0 && (
+              <MediaTile label="Esperando participantes" subtitle="El audio y video aparecerán aquí cuando alguien se conecte." className="md:col-span-2 xl:col-span-3">
+                <div className="grid h-full min-h-[220px] place-items-center p-6 text-center text-slate-400">
+                  <div>
+                    <Video className="mx-auto h-10 w-10 text-slate-500" />
+                    <p className="mt-4 text-sm">No hay streams remotos activos.</p>
+                  </div>
+                </div>
+              </MediaTile>
+            )}
+
+            {remoteEntries.map(([peerId, stream]) => (
+              <MediaTile key={peerId} label={`Participante ${peerId.slice(0, 6)}`} subtitle="Cámara, pantalla compartida y audio">
+                <RemoteVideoContent stream={stream} />
+              </MediaTile>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MediaTile({ children, label, subtitle, className = "" }: {
+  children: ReactNode;
+  label: string;
+  subtitle: string;
+  className?: string;
+}) {
+  return (
+    <div className={`relative min-h-[220px] overflow-hidden rounded-[1.75rem] border border-white/10 bg-black shadow-2xl shadow-black/30 ${className}`}>
+      {children}
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+        <p className="font-medium text-white">{label}</p>
+        <p className="mt-1 text-xs text-white/60">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+function RemoteVideoContent({ stream }: { stream: MediaStream }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      className="h-full w-full rounded-2xl object-cover"
+    />
   );
 }
 
