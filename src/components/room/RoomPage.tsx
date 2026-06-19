@@ -1005,9 +1005,8 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
 }) {
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const [focusedTileId, setFocusedTileId] = useState<string | null>(null);
 
-  // SOLUCIÓN AL CONGELAMIENTO: Eliminamos useMemo y transformamos directamente el Map a Array.
-  // Esto fuerza a React a pintar los videos de tus compañeros en tiempo real.
   const remoteEntries = Array.from(remoteStreams.entries());
 
   const totalTiles = 1 + (remoteEntries.length > 0 ? remoteEntries.length : 1);
@@ -1026,6 +1025,51 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
       localVideoRef.current.play().catch((err) => console.log("Local video play retry:", err));
     }
   }, [localStream]);
+
+  // Render function for local video tile
+  const renderLocalTile = (isSmall = false) => (
+    <MediaTile
+      label="Tú"
+      subtitle={isScreenSharing ? "Pantalla compartida" : displayName || user.username}
+      className={`w-full aspect-video cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-violet-500/50 ${
+        focusedTileId === "local" && !isSmall ? "ring-2 ring-cyan-500" : ""
+      }`}
+      onClick={() => setFocusedTileId(focusedTileId === "local" ? null : "local")}
+    >
+      <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full rounded-2xl object-contain" />
+    </MediaTile>
+  );
+
+  // Render function for a remote video tile
+  const renderRemoteTile = (peerId: string, stream: MediaStream, isSmall = false) => (
+    <MediaTile
+      key={peerId}
+      label={`Participante ${peerId.slice(0, 6)}`}
+      subtitle="Cámara, pantalla compartida y audio"
+      className={`w-full aspect-video cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-violet-500/50 ${
+        focusedTileId === peerId && !isSmall ? "ring-2 ring-cyan-500" : ""
+      }`}
+      onClick={() => setFocusedTileId(focusedTileId === peerId ? null : peerId)}
+    >
+      <RemoteVideoContent stream={stream} />
+    </MediaTile>
+  );
+
+  // Render function for placeholder
+  const renderPlaceholderTile = () => (
+    <MediaTile
+      label="Esperando participantes"
+      subtitle="El audio y video aparecerán aquí cuando alguien se conecte."
+      className="w-full aspect-video"
+    >
+      <div className="grid h-full place-items-center p-6 text-center text-slate-400">
+        <div>
+          <Video className="mx-auto h-10 w-10 text-slate-500" />
+          <p className="mt-4 text-sm">No hay streams remotos activos.</p>
+        </div>
+      </div>
+    </MediaTile>
+  );
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1055,28 +1099,48 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
               <p className="mt-3 text-sm leading-6 text-slate-400">Activa la llamada desde el botón del teléfono para ver y escuchar a los participantes.</p>
             </div>
           </div>
+        ) : focusedTileId ? (
+          <div className="flex flex-col lg:flex-row gap-4 w-full h-full max-h-[75vh] items-stretch">
+            {/* Main Focused Tile */}
+            <div className="flex-1 min-w-0 flex items-center justify-center">
+              {focusedTileId === "local" && renderLocalTile()}
+              {focusedTileId !== "local" && (() => {
+                const entry = remoteEntries.find(([peerId]) => peerId === focusedTileId);
+                if (entry) {
+                  return renderRemoteTile(entry[0], entry[1]);
+                }
+                // Fallback if focused peer disconnected
+                setTimeout(() => setFocusedTileId(null), 0);
+                return renderLocalTile();
+              })()}
+            </div>
+
+            {/* Sidebar of other tiles */}
+            <div className="flex lg:flex-col gap-3 overflow-x-auto lg:overflow-y-auto lg:w-64 xl:w-72 shrink-0 p-1 max-h-[20vh] lg:max-h-full">
+              {focusedTileId !== "local" && (
+                <div className="w-44 lg:w-full shrink-0">
+                  {renderLocalTile(true)}
+                </div>
+              )}
+              {remoteEntries.map(([peerId, stream]) => {
+                if (peerId === focusedTileId) return null;
+                return (
+                  <div key={peerId} className="w-44 lg:w-full shrink-0">
+                    {renderRemoteTile(peerId, stream, true)}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           <div className={`grid gap-4 w-full justify-center ${getGridClass(totalTiles)}`}>
-            <MediaTile label="Tú" subtitle={isScreenSharing ? "Pantalla compartida" : displayName || user.username} className="w-full aspect-video">
-              <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full rounded-2xl object-contain" />
-            </MediaTile>
+            {renderLocalTile()}
 
             {/* Alternamos entre el placeholder de espera o la lista de participantes reales */}
             {remoteEntries.length === 0 ? (
-              <MediaTile label="Esperando participantes" subtitle="El audio y video aparecerán aquí cuando alguien se conecte." className="w-full aspect-video">
-                <div className="grid h-full place-items-center p-6 text-center text-slate-400">
-                  <div>
-                    <Video className="mx-auto h-10 w-10 text-slate-500" />
-                    <p className="mt-4 text-sm">No hay streams remotos activos.</p>
-                  </div>
-                </div>
-              </MediaTile>
+              renderPlaceholderTile()
             ) : (
-              remoteEntries.map(([peerId, stream]) => (
-                <MediaTile key={peerId} label={`Participante ${peerId.slice(0, 6)}`} subtitle="Cámara, pantalla compartida y audio" className="w-full aspect-video">
-                  <RemoteVideoContent stream={stream} />
-                </MediaTile>
-              ))
+              remoteEntries.map(([peerId, stream]) => renderRemoteTile(peerId, stream))
             )}
           </div>
         )}
@@ -1085,14 +1149,18 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
   );
 }
 
-function MediaTile({ children, label, subtitle, className = "" }: {
+function MediaTile({ children, label, subtitle, className = "", onClick }: {
   children: ReactNode;
   label: string;
   subtitle: string;
   className?: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className={`relative min-h-[220px] overflow-hidden rounded-[1.75rem] border border-white/10 bg-black shadow-2xl shadow-black/30 ${className}`}>
+    <div
+      onClick={onClick}
+      className={`relative min-h-[220px] overflow-hidden rounded-[1.75rem] border border-white/10 bg-black shadow-2xl shadow-black/30 ${className}`}
+    >
       {children}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
         <p className="font-medium text-white">{label}</p>
