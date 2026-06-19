@@ -1001,14 +1001,16 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   
-  // 1. Convertimos directamente a Array sin usar useMemo (evita congelamiento por mutación de mapa)
+  // Convertimos directamente a array en cada renderizado para evitar cachear mapas mutados
   const remoteEntries = Array.from(remoteStreams.entries());
 
-  // 2. Asignamos el stream local y forzamos la reproducción activa
+  // Forzar reproducción del stream local al montar o cambiar la vista
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.play().catch((err) => console.log("Video play interrupted:", err));
+      localVideoRef.current.play().catch((err) => {
+        console.warn("La reproducción del video local fue interrumpida o bloqueada por el navegador:", err);
+      });
     }
   }, [localStream]);
 
@@ -1090,11 +1092,20 @@ function RemoteVideoContent({ stream }: { stream: MediaStream }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (videoRef.current) {
+    let isMounted = true;
+
+    if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
-      // Forzar reproducción al renderizar el nuevo componente
-      videoRef.current.play().catch((err) => console.log("Remote video play interrupted:", err));
+      
+      // Forzar al navegador a iniciar la reproducción del stream WebRTC entrante
+      videoRef.current.play().catch((err) => {
+        console.warn("La reproducción remota falló o fue pausada por políticas del navegador:", err);
+      });
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [stream]);
 
   return (
