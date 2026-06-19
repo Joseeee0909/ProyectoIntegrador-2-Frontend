@@ -1004,12 +1004,25 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
   isScreenSharing: boolean;
 }) {
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
-  const localVideoRef = useRef<HTMLVideoElement>(null);
   const [focusedTileId, setFocusedTileId] = useState<string | null>(null);
 
   const remoteEntries = Array.from(remoteStreams.entries());
 
   const totalTiles = 1 + (remoteEntries.length > 0 ? remoteEntries.length : 1);
+
+  // Auto-detect if a remote participant is sharing screen
+  const remoteScreenShareEntry = remoteEntries.find((entry) => {
+    const videoTrack = entry[1].getVideoTracks()[0];
+    return videoTrack && !!videoTrack.getSettings().displaySurface;
+  });
+
+  // Automatically focus on the screen share (local or remote) if active, fallback to manual focus state
+  let activeFocusedId = focusedTileId;
+  if (isScreenSharing) {
+    activeFocusedId = "local";
+  } else if (remoteScreenShareEntry) {
+    activeFocusedId = remoteScreenShareEntry[0];
+  }
 
   const getGridClass = (count: number) => {
     if (count <= 1) return "grid-cols-1 max-w-2xl";
@@ -1019,41 +1032,44 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
     return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-w-7xl";
   };
 
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.play().catch((err) => console.log("Local video play retry:", err));
-    }
-  }, [localStream]);
-
   // Render function for local video tile
   const renderLocalTile = (isSmall = false) => (
     <MediaTile
       label="Tú"
       subtitle={isScreenSharing ? "Pantalla compartida" : displayName || user.username}
       className={`w-full aspect-video cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-violet-500/50 ${
-        focusedTileId === "local" && !isSmall ? "ring-2 ring-cyan-500" : ""
+        activeFocusedId === "local" && !isSmall ? "ring-2 ring-cyan-500" : ""
       }`}
       onClick={() => setFocusedTileId(focusedTileId === "local" ? null : "local")}
     >
-      <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full rounded-2xl object-contain" />
+      {localStream ? (
+        <LocalVideoContent stream={localStream} />
+      ) : (
+        <div className="h-full w-full bg-slate-900 rounded-2xl" />
+      )}
     </MediaTile>
   );
 
   // Render function for a remote video tile
-  const renderRemoteTile = (peerId: string, stream: MediaStream, isSmall = false) => (
-    <MediaTile
-      key={peerId}
-      label={`Participante ${peerId.slice(0, 6)}`}
-      subtitle="Cámara, pantalla compartida y audio"
-      className={`w-full aspect-video cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-violet-500/50 ${
-        focusedTileId === peerId && !isSmall ? "ring-2 ring-cyan-500" : ""
-      }`}
-      onClick={() => setFocusedTileId(focusedTileId === peerId ? null : peerId)}
-    >
-      <RemoteVideoContent stream={stream} />
-    </MediaTile>
-  );
+  const renderRemoteTile = (peerId: string, stream: MediaStream, isSmall = false) => {
+    const videoTrack = stream.getVideoTracks()[0];
+    const isScreenShare = videoTrack && !!videoTrack.getSettings().displaySurface;
+    const fit = (isScreenShare || (!isSmall && activeFocusedId === peerId)) ? "contain" : "cover";
+
+    return (
+      <MediaTile
+        key={peerId}
+        label={`Participante ${peerId.slice(0, 6)}`}
+        subtitle={isScreenShare ? "Pantalla compartida" : "Cámara y audio"}
+        className={`w-full aspect-video cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-violet-500/50 ${
+          activeFocusedId === peerId && !isSmall ? "ring-2 ring-cyan-500" : ""
+        }`}
+        onClick={() => setFocusedTileId(focusedTileId === peerId ? null : peerId)}
+      >
+        <RemoteVideoContent stream={stream} objectFit={fit} />
+      </MediaTile>
+    );
+  };
 
   // Render function for placeholder
   const renderPlaceholderTile = () => (
@@ -1099,13 +1115,13 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
               <p className="mt-3 text-sm leading-6 text-slate-400">Activa la llamada desde el botón del teléfono para ver y escuchar a los participantes.</p>
             </div>
           </div>
-        ) : focusedTileId ? (
+        ) : activeFocusedId ? (
           <div className="flex flex-col lg:flex-row gap-4 w-full h-full max-h-[75vh] items-stretch">
             {/* Main Focused Tile */}
             <div className="flex-1 min-w-0 flex items-center justify-center">
-              {focusedTileId === "local" && renderLocalTile()}
-              {focusedTileId !== "local" && (() => {
-                const entry = remoteEntries.find(([peerId]) => peerId === focusedTileId);
+              {activeFocusedId === "local" && renderLocalTile()}
+              {activeFocusedId !== "local" && (() => {
+                const entry = remoteEntries.find(([peerId]) => peerId === activeFocusedId);
                 if (entry) {
                   return renderRemoteTile(entry[0], entry[1]);
                 }
@@ -1117,13 +1133,13 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
 
             {/* Sidebar of other tiles */}
             <div className="flex lg:flex-col gap-3 overflow-x-auto lg:overflow-y-auto lg:w-64 xl:w-72 shrink-0 p-1 max-h-[20vh] lg:max-h-full">
-              {focusedTileId !== "local" && (
+              {activeFocusedId !== "local" && (
                 <div className="w-44 lg:w-full shrink-0">
                   {renderLocalTile(true)}
                 </div>
               )}
               {remoteEntries.map(([peerId, stream]) => {
-                if (peerId === focusedTileId) return null;
+                if (peerId === activeFocusedId) return null;
                 return (
                   <div key={peerId} className="w-44 lg:w-full shrink-0">
                     {renderRemoteTile(peerId, stream, true)}
@@ -1170,7 +1186,30 @@ function MediaTile({ children, label, subtitle, className = "", onClick }: {
   );
 }
 
-function RemoteVideoContent({ stream }: { stream: MediaStream }) {
+function LocalVideoContent({ stream }: { stream: MediaStream }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch((err) => {
+        console.warn("La reproducción del video local falló:", err);
+      });
+    }
+  }, [stream]);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      muted
+      playsInline
+      className="h-full w-full rounded-2xl object-contain"
+    />
+  );
+}
+
+function RemoteVideoContent({ stream, objectFit = "cover" }: { stream: MediaStream; objectFit?: "cover" | "contain" }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -1190,7 +1229,7 @@ function RemoteVideoContent({ stream }: { stream: MediaStream }) {
       ref={videoRef}
       autoPlay
       playsInline
-      className="h-full w-full rounded-2xl object-cover"
+      className={`h-full w-full rounded-2xl ${objectFit === "contain" ? "object-contain" : "object-cover"}`}
     />
   );
 }
