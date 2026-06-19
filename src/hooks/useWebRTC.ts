@@ -41,7 +41,7 @@ export function useWebRTC({ roomId, accessToken }: UseWebRTCOptions) {
     // Close existing peer for this socket if any
     const existing = peersRef.current.get(remoteSocketId);
     if (existing) {
-      try { existing.pc.close(); } catch (_e) { /* ignore */ }
+      try { existing.pc.close(); } catch { /* ignore */ }
     }
 
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
@@ -91,75 +91,75 @@ export function useWebRTC({ roomId, accessToken }: UseWebRTCOptions) {
     }
   }, []);
 
-  const startScreenShare = useCallback(async () => {
-  const screenStream = await navigator.mediaDevices.getDisplayMedia({
-    video: true,
-    audio: true,
-  });
+  const stopScreenShare = useCallback(async () => {
+    // Detener los tracks de pantalla
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+    screenStreamRef.current = null;
 
-  screenStreamRef.current = screenStream;
-  const screenTrack = screenStream.getVideoTracks()[0];
-
-  // Reemplazar el video track en todos los peers activos
-  for (const { pc } of peersRef.current.values()) {
-    const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-    if (sender) await sender.replaceTrack(screenTrack);
-  }
-
-  // Actualizar el stream local para que el preview también cambie
-  if (localStreamRef.current) {
-    const oldTrack = localStreamRef.current.getVideoTracks()[0];
-    if (oldTrack) {
-      localStreamRef.current.removeTrack(oldTrack);
-      oldTrack.stop();
+    // Re-adquirir la cámara
+    let camStream: MediaStream;
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    } catch {
+      setIsScreenSharing(false);
+      return;
     }
-    localStreamRef.current.addTrack(screenTrack);
-  }
 
-  setIsScreenSharing(true);
-  setLocalStream(localStreamRef.current ? new MediaStream(localStreamRef.current.getTracks()) : null);
+    const newCamTrack = camStream.getVideoTracks()[0];
 
-  // Restaurar cámara automáticamente si el usuario cierra el picker del SO
-  screenTrack.addEventListener("ended", () => {
-    void stopScreenShare();
-  }, { once: true });
-}, []);
+    // Reemplazar en todos los peers
+    for (const { pc } of peersRef.current.values()) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) await sender.replaceTrack(newCamTrack);
+    }
 
-const stopScreenShare = useCallback(async () => {
-  // Detener los tracks de pantalla
-  screenStreamRef.current?.getTracks().forEach((t) => t.stop());
-  screenStreamRef.current = null;
+    // Actualizar el stream local
+    if (localStreamRef.current) {
+      const oldTrack = localStreamRef.current.getVideoTracks()[0];
+      if (oldTrack) {
+        localStreamRef.current.removeTrack(oldTrack);
+        oldTrack.stop();
+      }
+      localStreamRef.current.addTrack(newCamTrack);
+      setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+    }
 
-  // Re-adquirir la cámara
-  let camStream: MediaStream;
-  try {
-    camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-  } catch {
     setIsScreenSharing(false);
-    return;
-  }
+  }, []);
 
-  const newCamTrack = camStream.getVideoTracks()[0];
+  const startScreenShare = useCallback(async () => {
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: true,
+    });
 
-  // Reemplazar en todos los peers
-  for (const { pc } of peersRef.current.values()) {
-    const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-    if (sender) await sender.replaceTrack(newCamTrack);
-  }
+    screenStreamRef.current = screenStream;
+    const screenTrack = screenStream.getVideoTracks()[0];
 
-  // Actualizar el stream local
-  if (localStreamRef.current) {
-    const oldTrack = localStreamRef.current.getVideoTracks()[0];
-    if (oldTrack) {
-      localStreamRef.current.removeTrack(oldTrack);
-      oldTrack.stop();
+    // Reemplazar el video track en todos los peers activos
+    for (const { pc } of peersRef.current.values()) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) await sender.replaceTrack(screenTrack);
     }
-    localStreamRef.current.addTrack(newCamTrack);
-    setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
-  }
 
-  setIsScreenSharing(false);
-}, []);
+    // Actualizar el stream local para que el preview también cambie
+    if (localStreamRef.current) {
+      const oldTrack = localStreamRef.current.getVideoTracks()[0];
+      if (oldTrack) {
+        localStreamRef.current.removeTrack(oldTrack);
+        oldTrack.stop();
+      }
+      localStreamRef.current.addTrack(screenTrack);
+    }
+
+    setIsScreenSharing(true);
+    setLocalStream(localStreamRef.current ? new MediaStream(localStreamRef.current.getTracks()) : null);
+
+    // Restaurar cámara automáticamente si el usuario cierra el picker del SO
+    screenTrack.addEventListener("ended", () => {
+      void stopScreenShare();
+    }, { once: true });
+  }, [stopScreenShare]);
 
   // Get or create local stream
   const getLocalStream = useCallback(async (): Promise<MediaStream> => {
@@ -186,7 +186,7 @@ const stopScreenShare = useCallback(async () => {
 
     // Close all peer connections
     peersRef.current.forEach((peer) => {
-      try { peer.pc.close(); } catch (_e) { /* ignore */ }
+      try { peer.pc.close(); } catch { /* ignore */ }
     });
     peersRef.current.clear();
     setRemoteStreams(new Map());
@@ -275,7 +275,7 @@ const stopScreenShare = useCallback(async () => {
     const onUserLeft = ({ socketId }: { socketId: string }) => {
       const peer = peersRef.current.get(socketId);
       if (peer) {
-        try { peer.pc.close(); } catch (_e) { /* ignore */ }
+        try { peer.pc.close(); } catch { /* ignore */ }
         peersRef.current.delete(socketId);
         updateRemoteStreams();
       }

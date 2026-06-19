@@ -23,5 +23,5 @@ export async function ConnectToBackend( timeoutMs = 5000 ): Promise<BackendResul
       data,
     };
 
-} catch (error) { return { status: "error" } } finally { clearTimeout(timeoutId) }
+  } catch { return { status: "error" } } finally { clearTimeout(timeoutId) }
 }   

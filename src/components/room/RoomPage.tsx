@@ -177,20 +177,38 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
   const roomCode = room?.id ?? "--";
-  const currentParticipant: Participant = {
-    name: displayName || user.username,
-    initials: userInitials || user.username.slice(0, 2).toUpperCase(),
-    accent: "linear-gradient(135deg,#f97316,#ec4899)",
-    avatarSrc: resolveAvatarSrc(user.avatar),
-    badge: "active",
-  };
+  const currentParticipant = useMemo<Participant>(() => {
+    return {
+      name: displayName || user.username,
+      initials: userInitials || user.username.slice(0, 2).toUpperCase(),
+      accent: "linear-gradient(135deg,#f97316,#ec4899)",
+      avatarSrc: resolveAvatarSrc(user.avatar),
+      badge: "active",
+    };
+  }, [displayName, user.username, userInitials, user.avatar]);
 
   const [participants, setParticipants] = useState<Participant[]>([currentParticipant]);
+
+  const currentParticipantRef = useRef(currentParticipant);
+  useEffect(() => {
+    currentParticipantRef.current = currentParticipant;
+  }, [currentParticipant]);
 
   useEffect(() => {
     if (!room) return;
 
     const sock = initSocket(accessToken);
+
+    const handleConnect = () => {
+      joinSocketRoom(room.id, displayName || user.username);
+    };
+
+    // If already connected, join immediately
+    if (sock.connected) {
+      handleConnect();
+    } else {
+      sock.on("connect", handleConnect);
+    }
 
     // Listen for the full participants list from the server
     const handleParticipants = ({ participants: userList }: { roomId: string; participants: { socketId: string; username: string }[] }) => {
@@ -202,7 +220,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
           accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
           badge: "active",
         }));
-      setParticipants([currentParticipant, ...others]);
+      setParticipants([currentParticipantRef.current, ...others]);
     };
 
     const handleUserJoined = (_data: { socketId: string; username: string }) => {
@@ -228,11 +246,13 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
     sock.on("user-left", handleUserLeft);
 
     return () => {
+      sock.off("connect", handleConnect);
       sock.off("room:participants", handleParticipants);
       sock.off("user-joined", handleUserJoined);
       sock.off("user-left", handleUserLeft);
+      leaveSocketRoom(room.id);
     };
-  }, [room?.id, accessToken]);
+  }, [room?.id, accessToken, displayName, user.username]);
   const tokenSubject = getJwtSubject(accessToken);
   const isOwner = Boolean(
     room
@@ -794,21 +814,8 @@ function ChatPane({
     return () => container.removeEventListener("scroll", handleScroll);
   }, [hasMore, loadingOlder, messages]);
 
-  // Connect to socket and listen for real-time messages
+  // Listen for real-time messages (socket connection/room joining is managed by parent RoomPage)
   useEffect(() => {
-    const sock = initSocket(accessToken);
-
-    const handleConnect = () => {
-      joinSocketRoom(room.id, displayName || user.username);
-    };
-
-    // If already connected, join immediately
-    if (sock.connected) {
-      handleConnect();
-    } else {
-      sock.on("connect", handleConnect);
-    }
-
     const handleNewMessage = (raw: unknown) => {
       const msg = normalizeMessage(raw);
       if (msg) {
@@ -830,10 +837,8 @@ function ChatPane({
     onMessageError(handleError);
 
     return () => {
-      sock.off("connect", handleConnect);
       offNewMessage(handleNewMessage);
       offMessageError(handleError);
-      leaveSocketRoom(room.id);
     };
   }, [room.id, accessToken]);
 
