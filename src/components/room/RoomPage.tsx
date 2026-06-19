@@ -1092,8 +1092,6 @@ function RemoteVideoContent({ stream }: { stream: MediaStream }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    let isMounted = true;
-
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
       
@@ -1102,10 +1100,6 @@ function RemoteVideoContent({ stream }: { stream: MediaStream }) {
         console.warn("La reproducción remota falló o fue pausada por políticas del navegador:", err);
       });
     }
-
-    return () => {
-      isMounted = false;
-    };
   }, [stream]);
 
   return (
