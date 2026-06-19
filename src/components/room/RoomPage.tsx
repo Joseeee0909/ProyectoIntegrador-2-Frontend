@@ -46,6 +46,7 @@ type Participant = {
   accent: string;
   avatarSrc?: string;
   badge?: string;
+  socketId?: string;
 };
 
 function getDisplayDate(date: Date) {
@@ -184,6 +185,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
       accent: "linear-gradient(135deg,#f97316,#ec4899)",
       avatarSrc: resolveAvatarSrc(user.avatar),
       badge: "active",
+      socketId: "local",
     };
   }, [displayName, user.username, userInitials, user.avatar]);
 
@@ -219,18 +221,20 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
           initials: u.username.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?",
           accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
           badge: "active",
+          socketId: u.socketId,
         }));
       setParticipants([currentParticipantRef.current, ...others]);
     };
 
     const handleUserJoined = (_data: { socketId: string; username: string }) => {
       setParticipants((prev) => {
-        if (prev.some((p) => p.name === _data.username)) return prev;
+        if (prev.some((p) => p.socketId === _data.socketId)) return prev;
         return [...prev, {
           name: _data.username,
           initials: _data.username.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?",
           accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
           badge: "active",
+          socketId: _data.socketId,
         }];
       });
     };
@@ -1056,10 +1060,14 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
     const isScreenShare = videoTrack && !!videoTrack.getSettings().displaySurface;
     const fit = (isScreenShare || (!isSmall && activeFocusedId === peerId)) ? "contain" : "cover";
 
+    // Look up actual participant name using socketId
+    const participant = participants.find((p) => p.socketId === peerId);
+    const participantName = participant ? participant.name : `Participante ${peerId.slice(0, 6)}`;
+
     return (
       <MediaTile
         key={peerId}
-        label={`Participante ${peerId.slice(0, 6)}`}
+        label={participantName}
         subtitle={isScreenShare ? "Pantalla compartida" : "Cámara y audio"}
         className={`w-full aspect-video cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-violet-500/50 ${
           activeFocusedId === peerId && !isSmall ? "ring-2 ring-cyan-500" : ""
