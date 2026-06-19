@@ -1010,6 +1010,16 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
   // Esto fuerza a React a pintar los videos de tus compañeros en tiempo real.
   const remoteEntries = Array.from(remoteStreams.entries());
 
+  const totalTiles = 1 + (remoteEntries.length > 0 ? remoteEntries.length : 1);
+
+  const getGridClass = (count: number) => {
+    if (count <= 1) return "grid-cols-1 max-w-2xl";
+    if (count === 2) return "grid-cols-1 sm:grid-cols-2 max-w-5xl";
+    if (count === 3) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-6xl";
+    if (count === 4) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 max-w-4xl";
+    return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-w-7xl";
+  };
+
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
@@ -1034,7 +1044,7 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-x-auto overflow-y-hidden p-3 sm:p-5">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 flex items-center justify-center">
         {!callActive ? (
           <div className="grid h-[420px] w-[640px] max-w-full place-items-center rounded-[1.75rem] border border-dashed border-white/10 bg-white/5 px-6 text-center">
             <div>
@@ -1046,14 +1056,14 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
             </div>
           </div>
         ) : (
-          <div className="flex min-w-0 items-center justify-center gap-4">
-            <MediaTile label="Tú" subtitle={isScreenSharing ? "Pantalla compartida" : displayName || user.username} className="h-[360px] w-[640px] max-w-full shrink-0">
+          <div className={`grid gap-4 w-full justify-center ${getGridClass(totalTiles)}`}>
+            <MediaTile label="Tú" subtitle={isScreenSharing ? "Pantalla compartida" : displayName || user.username} className="w-full aspect-video">
               <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full rounded-2xl object-contain" />
             </MediaTile>
 
             {/* Alternamos entre el placeholder de espera o la lista de participantes reales */}
             {remoteEntries.length === 0 ? (
-              <MediaTile label="Esperando participantes" subtitle="El audio y video aparecerán aquí cuando alguien se conecte." className="h-[360px] w-[640px] max-w-full shrink-0">
+              <MediaTile label="Esperando participantes" subtitle="El audio y video aparecerán aquí cuando alguien se conecte." className="w-full aspect-video">
                 <div className="grid h-full place-items-center p-6 text-center text-slate-400">
                   <div>
                     <Video className="mx-auto h-10 w-10 text-slate-500" />
@@ -1063,7 +1073,7 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
               </MediaTile>
             ) : (
               remoteEntries.map(([peerId, stream]) => (
-                <MediaTile key={peerId} label={`Participante ${peerId.slice(0, 6)}`} subtitle="Cámara, pantalla compartida y audio" className="h-[360px] w-[640px] max-w-full shrink-0">
+                <MediaTile key={peerId} label={`Participante ${peerId.slice(0, 6)}`} subtitle="Cámara, pantalla compartida y audio" className="w-full aspect-video">
                   <RemoteVideoContent stream={stream} />
                 </MediaTile>
               ))
