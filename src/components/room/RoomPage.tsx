@@ -1000,11 +1000,15 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
 }) {
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteEntries = useMemo(() => Array.from(remoteStreams.entries()), [remoteStreams]);
+  
+  // 1. Convertimos directamente a Array sin usar useMemo (evita congelamiento por mutación de mapa)
+  const remoteEntries = Array.from(remoteStreams.entries());
 
+  // 2. Asignamos el stream local y forzamos la reproducción activa
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch((err) => console.log("Video play interrupted:", err));
     }
   }, [localStream]);
 
@@ -1088,6 +1092,8 @@ function RemoteVideoContent({ stream }: { stream: MediaStream }) {
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.srcObject = stream;
+      // Forzar reproducción al renderizar el nuevo componente
+      videoRef.current.play().catch((err) => console.log("Remote video play interrupted:", err));
     }
   }, [stream]);
 
