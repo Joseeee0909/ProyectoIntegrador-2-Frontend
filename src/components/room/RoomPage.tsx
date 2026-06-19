@@ -166,7 +166,7 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
       localVideoRef.current.srcObject = localStreamRef.current;
     }
   }, [callActive, localStreamState]);
-  
+
 
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
   const avatarSrc = resolveAvatarSrc(user.avatar);
@@ -187,59 +187,59 @@ export function RoomPage({ room, roomLoading, user, accessToken, onBack, onOpenP
 
   const [participants, setParticipants] = useState<Participant[]>([currentParticipant]);
 
-useEffect(() => {
-  if (!room) return;
+  useEffect(() => {
+    if (!room) return;
 
-  const sock = initSocket(accessToken);
+    const sock = initSocket(accessToken);
 
-  // Listen for the full participants list from the server
-  const handleParticipants = ({ participants: userList }: { roomId: string; participants: { socketId: string; username: string }[] }) => {
-    const others: Participant[] = userList
-      .filter((u) => u.socketId !== sock.id)
-      .map((u) => ({
-        name: u.username,
-        initials: u.username.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?",
-        accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
-        badge: "active",
-      }));
-    setParticipants([currentParticipant, ...others]);
-  };
+    // Listen for the full participants list from the server
+    const handleParticipants = ({ participants: userList }: { roomId: string; participants: { socketId: string; username: string }[] }) => {
+      const others: Participant[] = userList
+        .filter((u) => u.socketId !== sock.id)
+        .map((u) => ({
+          name: u.username,
+          initials: u.username.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?",
+          accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
+          badge: "active",
+        }));
+      setParticipants([currentParticipant, ...others]);
+    };
 
-  const handleUserJoined = (_data: { socketId: string; username: string }) => {
-    setParticipants((prev) => {
-      if (prev.some((p) => p.name === _data.username)) return prev;
-      return [...prev, {
-        name: _data.username,
-        initials: _data.username.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?",
-        accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
-        badge: "active",
-      }];
-    });
-  };
+    const handleUserJoined = (_data: { socketId: string; username: string }) => {
+      setParticipants((prev) => {
+        if (prev.some((p) => p.name === _data.username)) return prev;
+        return [...prev, {
+          name: _data.username,
+          initials: _data.username.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?",
+          accent: "linear-gradient(135deg,#6366f1,#06b6d4)",
+          badge: "active",
+        }];
+      });
+    };
 
-  
 
-  const handleUserLeft = () => {
-    // On user-left, just rely on room:participants to get the accurate list
-  };
 
-  sock.on("room:participants", handleParticipants);
-  sock.on("user-joined", handleUserJoined);
-  sock.on("user-left", handleUserLeft);
+    const handleUserLeft = () => {
+      // On user-left, just rely on room:participants to get the accurate list
+    };
 
-  return () => {
-    sock.off("room:participants", handleParticipants);
-    sock.off("user-joined", handleUserJoined);
-    sock.off("user-left", handleUserLeft);
-  };
+    sock.on("room:participants", handleParticipants);
+    sock.on("user-joined", handleUserJoined);
+    sock.on("user-left", handleUserLeft);
+
+    return () => {
+      sock.off("room:participants", handleParticipants);
+      sock.off("user-joined", handleUserJoined);
+      sock.off("user-left", handleUserLeft);
+    };
   }, [room?.id, accessToken]);
   const tokenSubject = getJwtSubject(accessToken);
   const isOwner = Boolean(
     room
-      && (room.ownerId === user.id
-        || room.ownerId === user.uid
-        || room.ownerId === user.firestoreId
-        || room.ownerId === tokenSubject),
+    && (room.ownerId === user.id
+      || room.ownerId === user.uid
+      || room.ownerId === user.firestoreId
+      || room.ownerId === tokenSubject),
   );
   const ownerLabel = isOwner ? user.username : room?.ownerId || "";
 
@@ -421,7 +421,7 @@ useEffect(() => {
                   setRoomName={setRoomName}
                   loading={loading}
                   onDeleteRoom={confirmDelete}
-                  participants={participants}  
+                  participants={participants}
                   roomCode={roomCode}
                   ownerLabel={ownerLabel}
                   deleteLoading={deleteLoading}
@@ -533,7 +533,7 @@ function DashboardSidebar({ user, onBack, onOpenProfile, onSettings, onLogout }:
   );
 }
 
-function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading, onToggleCall, callActive, onToggleMic, micActive , onToggleCamera, cameraActive, onScreenShare, isScreenSharing, mediaMode, onToggleMediaMode }: {
+function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading, onToggleCall, callActive, onToggleMic, micActive, onToggleCamera, cameraActive, onScreenShare, isScreenSharing, mediaMode, onToggleMediaMode }: {
   room: StudyRoom;
   onBack: () => void;
   onSettings: () => void;
@@ -597,17 +597,17 @@ function RoomHeader({ room, onBack, onSettings, onLeaveRoom, memberActionLoading
             <Mic className="h-4 w-4" />
           </button>
           <button
-              type="button"
-              onClick={onToggleCamera}
-              className={`grid h-8 w-8 place-items-center rounded-xl border transition
+            type="button"
+            onClick={onToggleCamera}
+            className={`grid h-8 w-8 place-items-center rounded-xl border transition
                 ${cameraActive
-                  ? "border-white/10 bg-white/5 text-[#7a7f9a] hover:bg-white/10 hover:text-[#c0c4dc]"
-                  : "border-rose-400/30 bg-rose-400/10 text-rose-300 hover:bg-rose-400/15"
-                }`}
-              title={cameraActive ? "Apagar cámara" : "Encender cámara"}
-            >
-              <Video className="h-4 w-4" />
-            </button>
+                ? "border-white/10 bg-white/5 text-[#7a7f9a] hover:bg-white/10 hover:text-[#c0c4dc]"
+                : "border-rose-400/30 bg-rose-400/10 text-rose-300 hover:bg-rose-400/15"
+              }`}
+            title={cameraActive ? "Apagar cámara" : "Encender cámara"}
+          >
+            <Video className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={onToggleCall}
@@ -936,7 +936,7 @@ function ChatPane({
                 autoPlay
                 muted
                 playsInline
-      className="h-full w-full rounded-2xl object-contain"
+                className="h-full w-full rounded-2xl object-contain"
               />
               <span className="absolute bottom-1 left-2 text-[10px] text-white/70">Tú</span>
             </div>
@@ -1000,9 +1000,9 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
 }) {
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  
-  // CORRECCIÓN: Convertimos el Map mutable directamente a un Array en cada render.
-  // Esto rompe el caché obsoleto y fuerza a React a pintar los nuevos participantes remotos.
+
+  // SOLUCIÓN AL CONGELAMIENTO: Eliminamos useMemo y transformamos directamente el Map a Array.
+  // Esto fuerza a React a pintar los videos de tus compañeros en tiempo real.
   const remoteEntries = Array.from(remoteStreams.entries());
 
   useEffect(() => {
@@ -1046,7 +1046,7 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
               <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full rounded-2xl object-contain" />
             </MediaTile>
 
-            {/* Si no hay elementos en el array transformado, mostramos el placeholder de espera */}
+            {/* Alternamos entre el placeholder de espera o la lista de participantes reales */}
             {remoteEntries.length === 0 ? (
               <MediaTile label="Esperando participantes" subtitle="El audio y video aparecerán aquí cuando alguien se conecte." className="h-[360px] w-[640px] max-w-full shrink-0">
                 <div className="grid h-full place-items-center p-6 text-center text-slate-400">
@@ -1057,7 +1057,6 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
                 </div>
               </MediaTile>
             ) : (
-              // Si el array tiene datos, mapeamos los videos de tus compañeros de forma dinámica
               remoteEntries.map(([peerId, stream]) => (
                 <MediaTile key={peerId} label={`Participante ${peerId.slice(0, 6)}`} subtitle="Cámara, pantalla compartida y audio" className="h-[360px] w-[640px] max-w-full shrink-0">
                   <RemoteVideoContent stream={stream} />
@@ -1094,10 +1093,11 @@ function RemoteVideoContent({ stream }: { stream: MediaStream }) {
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
-      
-      // Forzar al navegador a renderizar el flujo asíncronamente
+
+      // SOLUCIÓN DE REPRODUCCIÓN: Fuerza al navegador a arrancar el stream de video 
+      // y evita que se quede congelado en el primer fotograma tras cambiar de pestaña.
       videoRef.current.play().catch((err) => {
-        console.warn("La reproducción remota fue pausada o interceptada por el navegador:", err);
+        console.warn("La reproducción asíncrona falló o fue bloqueada temporalmente:", err);
       });
     }
   }, [stream]);
@@ -1112,7 +1112,7 @@ function RemoteVideoContent({ stream }: { stream: MediaStream }) {
   );
 }
 
-function RoomSidebar({room, roomCode, participants, isOwner, error, onSubmit, roomName, setRoomName, loading, onDeleteRoom: _onDeleteRoom, ownerLabel, deleteLoading, onShowDeleteConfirm }: {
+function RoomSidebar({ room, roomCode, participants, isOwner, error, onSubmit, roomName, setRoomName, loading, onDeleteRoom: _onDeleteRoom, ownerLabel, deleteLoading, onShowDeleteConfirm }: {
   room: StudyRoom;
   roomCode: string;
   participants: Participant[];
@@ -1131,73 +1131,73 @@ function RoomSidebar({room, roomCode, participants, isOwner, error, onSubmit, ro
     <aside className="flex w-full min-h-0 flex-col overflow-hidden border-t border-white/5 bg-[#111320] xl:w-[340px] xl:min-w-[340px] xl:border-l xl:border-t-0 xl:border-white/5">
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4">
         <Section title="Sala">
-        <div className="grid min-w-0 gap-3 text-sm text-slate-300">
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Código</p>
-            <p className="mt-2 break-all font-mono text-sm text-slate-100">{roomCode}</p>
-            <p className="mt-2 truncate text-xs text-slate-500">Sala: {room.name}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Propietario: <span className="block truncate">{ownerLabel || room.ownerUsername}</span>
-            </p>
-          </div>
+          <div className="grid min-w-0 gap-3 text-sm text-slate-300">
+            <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Código</p>
+              <p className="mt-2 break-all font-mono text-sm text-slate-100">{roomCode}</p>
+              <p className="mt-2 truncate text-xs text-slate-500">Sala: {room.name}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Propietario: <span className="block truncate">{ownerLabel || room.ownerUsername}</span>
+              </p>
+            </div>
 
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-              Participantes ({participants.length})
-            </p>
-            <div className="mt-3 grid gap-2">
-              {participants.map((p) => (
-                <div
-                  key={p.name}
-                  className="flex items-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-white/5 px-3 py-2"
-                >
+            <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                Participantes ({participants.length})
+              </p>
+              <div className="mt-3 grid gap-2">
+                {participants.map((p) => (
                   <div
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-semibold text-white"
-                    style={{ background: p.accent }}
+                    key={p.name}
+                    className="flex items-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-white/5 px-3 py-2"
                   >
-                    {p.avatarSrc ? (
-                      <img src={p.avatarSrc} alt={p.name} className="h-full w-full rounded-full object-cover" />
-                    ) : (
-                      p.initials
-                    )}
+                    <div
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-semibold text-white"
+                      style={{ background: p.accent }}
+                    >
+                      {p.avatarSrc ? (
+                        <img src={p.avatarSrc} alt={p.name} className="h-full w-full rounded-full object-cover" />
+                      ) : (
+                        p.initials
+                      )}
+                    </div>
+                    <p className="min-w-0 flex-1 truncate text-xs font-medium text-slate-100" title={p.name}>{p.name}</p>
+                    <span className="shrink-0 h-2 w-2 rounded-full bg-emerald-400" title="Activo" />
                   </div>
-                  <p className="min-w-0 flex-1 truncate text-xs font-medium text-slate-100" title={p.name}>{p.name}</p>
-                  <span className="shrink-0 h-2 w-2 rounded-full bg-emerald-400" title="Activo" />
+                ))}
+              </div>
+            </div>
+
+            {isOwner ? (
+              <form className="grid gap-3 rounded-[1.5rem] border border-white/10 bg-slate-950/40 p-4" onSubmit={onSubmit} noValidate>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Editar nombre</p>
+                  <input
+                    className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
+                    value={roomName}
+                    onChange={(event) => setRoomName(event.target.value)}
+                    placeholder="Nuevo nombre de sala"
+                  />
                 </div>
-              ))}
-            </div>
+
+                {error ? <p role="alert" className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</p> : null}
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button type="submit" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 disabled:cursor-progress disabled:opacity-60" disabled={loading}>
+                    <PencilLine className="h-4 w-4" /> {loading ? "Guardando..." : "Editar sala"}
+                  </button>
+                  <button type="button" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 text-sm font-medium text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-progress disabled:opacity-60" onClick={onShowDeleteConfirm} disabled={loading || deleteLoading}>
+                    <Trash2 className="h-4 w-4" /> Eliminar sala
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
+                No eres el creador de esta sala, así que solo puedes interactuar con el chat y salir de la sala.
+              </div>
+            )}
           </div>
-
-          {isOwner ? (
-            <form className="grid gap-3 rounded-[1.5rem] border border-white/10 bg-slate-950/40 p-4" onSubmit={onSubmit} noValidate>
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Editar nombre</p>
-                <input
-                  className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
-                  value={roomName}
-                  onChange={(event) => setRoomName(event.target.value)}
-                  placeholder="Nuevo nombre de sala"
-                />
-              </div>
-
-              {error ? <p role="alert" className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</p> : null}
-
-<div className="grid gap-2 sm:grid-cols-2">
-                <button type="submit" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 disabled:cursor-progress disabled:opacity-60" disabled={loading}>
-                  <PencilLine className="h-4 w-4" /> {loading ? "Guardando..." : "Editar sala"}
-                </button>
-                <button type="button" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 text-sm font-medium text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-progress disabled:opacity-60" onClick={onShowDeleteConfirm} disabled={loading || deleteLoading}>
-                  <Trash2 className="h-4 w-4" /> Eliminar sala
-                </button>
-              </div>
-            </form>
-          ) : (
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
-              No eres el creador de esta sala, así que solo puedes interactuar con el chat y salir de la sala.
-            </div>
-          )}
-        </div>
-      </Section>
+        </Section>
       </div>
     </aside>
   );
