@@ -1001,16 +1001,14 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
   const displayName = [user.names, user.lastNames].filter((part): part is string => Boolean(part && part.trim())).join(" ").trim();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   
-  // Convertimos directamente a array en cada renderizado para evitar cachear mapas mutados
+  // CORRECCIÓN: Convertimos el Map mutable directamente a un Array en cada render.
+  // Esto rompe el caché obsoleto y fuerza a React a pintar los nuevos participantes remotos.
   const remoteEntries = Array.from(remoteStreams.entries());
 
-  // Forzar reproducción del stream local al montar o cambiar la vista
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.play().catch((err) => {
-        console.warn("La reproducción del video local fue interrumpida o bloqueada por el navegador:", err);
-      });
+      localVideoRef.current.play().catch((err) => console.log("Local video play retry:", err));
     }
   }, [localStream]);
 
@@ -1048,7 +1046,8 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
               <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full rounded-2xl object-contain" />
             </MediaTile>
 
-            {remoteEntries.length === 0 && (
+            {/* Si no hay elementos en el array transformado, mostramos el placeholder de espera */}
+            {remoteEntries.length === 0 ? (
               <MediaTile label="Esperando participantes" subtitle="El audio y video aparecerán aquí cuando alguien se conecte." className="h-[360px] w-[640px] max-w-full shrink-0">
                 <div className="grid h-full place-items-center p-6 text-center text-slate-400">
                   <div>
@@ -1057,13 +1056,14 @@ function MediaPane({ user, participants, callActive, localStream, remoteStreams,
                   </div>
                 </div>
               </MediaTile>
+            ) : (
+              // Si el array tiene datos, mapeamos los videos de tus compañeros de forma dinámica
+              remoteEntries.map(([peerId, stream]) => (
+                <MediaTile key={peerId} label={`Participante ${peerId.slice(0, 6)}`} subtitle="Cámara, pantalla compartida y audio" className="h-[360px] w-[640px] max-w-full shrink-0">
+                  <RemoteVideoContent stream={stream} />
+                </MediaTile>
+              ))
             )}
-
-            {remoteEntries.map(([peerId, stream]) => (
-              <MediaTile key={peerId} label={`Participante ${peerId.slice(0, 6)}`} subtitle="Cámara, pantalla compartida y audio" className="h-[360px] w-[640px] max-w-full shrink-0">
-                <RemoteVideoContent stream={stream} />
-              </MediaTile>
-            ))}
           </div>
         )}
       </div>
@@ -1095,9 +1095,9 @@ function RemoteVideoContent({ stream }: { stream: MediaStream }) {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
       
-      // Forzar al navegador a iniciar la reproducción del stream WebRTC entrante
+      // Forzar al navegador a renderizar el flujo asíncronamente
       videoRef.current.play().catch((err) => {
-        console.warn("La reproducción remota falló o fue pausada por políticas del navegador:", err);
+        console.warn("La reproducción remota fue pausada o interceptada por el navegador:", err);
       });
     }
   }, [stream]);
